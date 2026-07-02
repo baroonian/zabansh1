@@ -30,7 +30,7 @@ export default function LoginPage() {
         <div className="text-center mb-8">
           <div className="text-5xl mb-3">🎧</div>
           <h1 className="text-2xl font-bold text-white">English Shadowing</h1>
-          <p className="text-slate-400 text-sm mt-1">یادگیری زبان با روش سایه‌نشینی</p>
+          <p className="text-slate-400 text-sm mt-1">یادگیری آسان زبان بدون تلاش</p>
         </div>
 
         <div className="bg-card border border-ocean-600 rounded-2xl p-7">
@@ -64,6 +64,13 @@ export default function LoginPage() {
               {loading ? 'در حال ورود...' : 'ورود به اپلیکیشن'}
             </button>
           </form>
+                <Link
+                href="/auth/forgot-password"
+                className="text-sm text-blue-600 hover:text-blue-700"
+              >
+               رمز عبور را فراموش کرده‌اید؟
+              </Link>
+
         </div>
 
         <p className="text-center text-slate-500 text-xs mt-6">
