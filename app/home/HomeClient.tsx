@@ -12,6 +12,7 @@ const LEVEL_FILTERS = [
   { key: 'advanced',     label: 'سطح پیشرفته',   icon: '🔥' },
   { key: 'children',     label: 'کودک',           icon: '🧒' },
   { key: 'adult',        label: 'بزرگسال',        icon: '👤' },
+  { key: 'Movie & TV',        label: 'فیلم و سریال',        icon: '👤' },
 ]
 
 const LEVEL_COLORS: Record<string, string> = {
