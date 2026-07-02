@@ -2,7 +2,7 @@ import type { Metadata } from 'next'
 import './globals.css'
 
 export const metadata: Metadata = {
-  title: 'English Shadowing | یادگیری زبان به روش سایه خوانی',
+  title: 'English Shadowing | یادگیری زبان به روش شدویینگ',
   description: 'یادگیری آسان زبان بدون تلاش',
 }
 
