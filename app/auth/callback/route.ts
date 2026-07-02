@@ -17,16 +17,9 @@ export async function GET(request: NextRequest) {
           getAll() {
             return cookieStore.getAll()
           },
-          setAll(
-            cookiesToSet: {
-              name: string
-              value: string
-              options?: Record<string, unknown>
-            }[]
-          ) {
-            cookiesToSet.forEach(({ name, value, options }) =>
-              // @ts-expect-error - options type mismatch
-              cookieStore.set(name, value, options)
+          setAll(cookiesToSet) {
+            cookiesToSet.forEach((cookie) =>
+              cookieStore.set(cookie.name, cookie.value, cookie.options)
             )
           },
         },

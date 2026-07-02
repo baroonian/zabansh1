@@ -12,21 +12,12 @@ export async function createClient() {
         getAll() {
           return cookieStore.getAll()
         },
-        setAll(
-          cookiesToSet: {
-            name: string
-            value: string
-            options?: Record<string, unknown>
-          }[]
-        ) {
+        setAll(cookiesToSet) {
           try {
-            cookiesToSet.forEach(({ name, value, options }) =>
-              // @ts-expect-error - options type mismatch between next/headers and @supabase/ssr
-              cookieStore.set(name, value, options)
+            cookiesToSet.forEach((cookie) =>
+              cookieStore.set(cookie.name, cookie.value, cookie.options)
             )
-          } catch {
-            // Server Component — cookies can only be set in middleware/route handlers
-          }
+          } catch { /* ignore in Server Components */ }
         },
       },
     }
