@@ -19,7 +19,9 @@ export default function Navbar({ profile }: { profile?: UserProfile | null }) {
     <nav className="sticky top-0 z-50 flex items-center justify-between px-6 h-14 bg-ocean-900/90 backdrop-blur border-b border-ocean-600">
       <div className="flex items-center gap-2.5 font-bold text-amber-500">
         <span className="text-xl">🎧</span>
-        <span className="text-sm">English Shadowing</span>
+        <a href="/home" target="_blank">
+        <span className="text-xl">شدویینگ انگلیسی</span>
+        </a>
       </div>
 
       <div className="flex items-center gap-3">
