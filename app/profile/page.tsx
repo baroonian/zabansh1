@@ -5,7 +5,7 @@ import Speedometer from '@/components/ui/Speedometer'
 import LogoutButton from './LogoutButton'
 
 export default async function ProfilePage() {
-  const sb = createClient()
+  const sb = await createClient()
   const { data: { user } } = await sb.auth.getUser()
   if (!user) redirect('/auth/login')
 
@@ -17,24 +17,21 @@ export default async function ProfilePage() {
     sb.from('streaks').select('*').eq('user_id', user.id).order('date', { ascending: false }).limit(14),
   ])
 
-  const profile = profileRes.data
-  const totalWords   = wordRes.count ?? 0
-  const knownWords   = (knownRes.data ?? []).filter(w => w.status === 'known').length
+  const profile       = profileRes.data
+  const totalWords    = wordRes.count ?? 0
+  const knownWords    = (knownRes.data ?? []).filter(w => w.status === 'known').length
   const learningWords = (knownRes.data ?? []).filter(w => w.status === 'learning').length
   const pct = totalWords > 0 ? Math.round(knownWords / totalWords * 100) : 0
   const completedLessons = (progressRes.data ?? []).filter(p => p.completed).length
   const totalMinutes = Math.round(
     (progressRes.data ?? []).reduce((s, p) => s + (p.total_time_spent_ms ?? 0), 0) / 60000
   )
-
   const pctLabel = pct === 0 ? 'هنوز شروع نکردی' : pct < 34 ? 'در حال شروع' : pct < 67 ? 'پیشرفت خوب' : 'عالی!'
 
   return (
     <div className="min-h-screen">
       <Navbar profile={profile} />
       <main className="max-w-2xl mx-auto px-4 pb-16 pt-8">
-
-        {/* Profile card */}
         <div className="bg-card border border-ocean-600 rounded-2xl p-6 mb-6 flex items-center gap-5">
           <div className="w-16 h-16 rounded-full bg-amber-500 flex items-center justify-center text-ocean-950 font-bold text-2xl shrink-0">
             {(profile?.full_name || user.email || 'U')[0].toUpperCase()}
@@ -49,7 +46,6 @@ export default async function ProfilePage() {
           <LogoutButton />
         </div>
 
-        {/* Speedometer */}
         <div className="bg-card border border-ocean-600 rounded-2xl p-6 mb-6 text-center">
           <p className="text-xs text-slate-500 mb-2 tracking-wider">پیشرفت کلی یادگیری</p>
           <div className="flex justify-center">
@@ -57,13 +53,12 @@ export default async function ProfilePage() {
           </div>
         </div>
 
-        {/* Stats grid */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
           {[
-            { label: 'کلمه بلد',          value: knownWords,       color: '#10b981', icon: '✅' },
-            { label: 'در حال یادگیری',    value: learningWords,    color: '#f59e0b', icon: '🟡' },
-            { label: 'درس تکمیل‌شده',     value: completedLessons, color: '#3b82f6', icon: '📖' },
-            { label: 'دقیقه مطالعه',       value: totalMinutes,     color: '#a78bfa', icon: '⏱' },
+            { label: 'کلمه بلد',        value: knownWords,       color: '#10b981', icon: '✅' },
+            { label: 'در حال یادگیری',  value: learningWords,    color: '#f59e0b', icon: '🟡' },
+            { label: 'درس تکمیل‌شده',   value: completedLessons, color: '#3b82f6', icon: '📖' },
+            { label: 'دقیقه مطالعه',     value: totalMinutes,     color: '#a78bfa', icon: '⏱' },
           ].map(s => (
             <div key={s.label} className="bg-card border border-ocean-600 rounded-xl p-4 text-center"
               style={{ borderTop: `3px solid ${s.color}` }}>
@@ -74,12 +69,11 @@ export default async function ProfilePage() {
           ))}
         </div>
 
-        {/* Recent streaks */}
         {(streakRes.data ?? []).length > 0 && (
           <div className="bg-card border border-ocean-600 rounded-2xl p-5">
             <h2 className="text-sm font-semibold text-white mb-4">فعالیت ۱۴ روز اخیر</h2>
             <div className="flex gap-2 flex-wrap">
-              {(streakRes.data ?? []).reverse().map(s => (
+              {[...(streakRes.data ?? [])].reverse().map(s => (
                 <div key={s.date} className="text-center">
                   <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-xs font-bold ${
                     s.lessons_completed > 0

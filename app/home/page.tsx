@@ -3,7 +3,7 @@ import { redirect } from 'next/navigation'
 import HomeClient from './HomeClient'
 
 export default async function HomePage() {
-  const sb = createClient()
+  const sb = await createClient()
   const { data: { user } } = await sb.auth.getUser()
   if (!user) redirect('/auth/login')
 
@@ -15,8 +15,8 @@ export default async function HomePage() {
     sb.from('user_word_status').select('id,status').eq('user_id', user.id),
   ])
 
-  const totalWords   = wordCountRes.count ?? 0
-  const knownWords   = (knownRes.data ?? []).filter(w => w.status === 'known').length
+  const totalWords    = wordCountRes.count ?? 0
+  const knownWords    = (knownRes.data ?? []).filter(w => w.status === 'known').length
   const learningWords = (knownRes.data ?? []).filter(w => w.status === 'learning').length
   const pct = totalWords > 0 ? Math.round((knownWords / totalWords) * 100) : 0
 
