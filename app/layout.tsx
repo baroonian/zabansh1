@@ -2,8 +2,8 @@ import type { Metadata } from 'next'
 import './globals.css'
 
 export const metadata: Metadata = {
-  title: 'English Shadowing | یادگیری زبان',
-  description: 'یادگیری زبان انگلیسی با روش سایه‌نشینی',
+  title: 'English Shadowing | یادگیری زبان به روش سایه خوانی',
+  description: 'یادگیری آسان زبان بدون تلاش',
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
