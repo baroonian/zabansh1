@@ -15,6 +15,18 @@ export default async function HomePage() {
     sb.from('user_word_status').select('id,status').eq('user_id', user.id),
   ])
 
+  console.log('📚 Books Response:', {
+  data: booksRes.data,
+  error: booksRes.error,
+  count: booksRes.data?.length
+})
+
+console.log('📂 Categories Response:', {
+  data: catsRes.data,
+  error: catsRes.error,
+  count: catsRes.data?.length
+})
+
   const totalWords    = wordCountRes.count ?? 0
   const knownWords    = (knownRes.data ?? []).filter(w => w.status === 'known').length
   const learningWords = (knownRes.data ?? []).filter(w => w.status === 'learning').length
