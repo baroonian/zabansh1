@@ -58,18 +58,18 @@ export default function LoginPage() {
                 {error}
               </div>
             )}
-
-            <button type="submit" disabled={loading}
-              className="w-full py-3 bg-amber-500 hover:bg-amber-400 text-ocean-950 font-bold rounded-xl transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm mt-2">
-              {loading ? 'در حال ورود...' : 'ورود به اپلیکیشن'}
-            </button>
-          </form>
-                <Link
+              <Link
                 href="/auth/forgot-password"
                 className="text-sm text-blue-600 hover:text-blue-700"
               >
                رمز عبور را فراموش کرده‌اید؟
               </Link>
+            <button type="submit" disabled={loading}
+              className="w-full py-3 bg-amber-500 hover:bg-amber-400 text-ocean-950 font-bold rounded-xl transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm mt-2">
+              {loading ? 'در حال ورود...' : 'ورود به اپلیکیشن'}
+            </button>
+          </form>
+
 
         </div>
 

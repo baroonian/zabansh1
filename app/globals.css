@@ -61,3 +61,9 @@ body {
   color: #f59e0b;
   font-weight: 500;
 }
+form.space-y-6{
+  color:black;
+}
+.min-h-screen.flex.items-center.justify-center.px-4{
+background: radial-gradient(at 50% 0%, rgb(15, 37, 72) 0%, rgb(7, 17, 31) 65%);
+}
