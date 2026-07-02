@@ -21,7 +21,7 @@ export const metadata: Metadata = {
 
 export default function RootLayout({
   return (
-    <html lang="fa" dir="rtl" className={`${inter.variable} ${vazirmatn.variable}`}>
+    <html lang="fa" dir="rtl">
       <body className="min-h-screen bg-ocean-950 text-slate-200 antialiased">
         {children}
       </body>
