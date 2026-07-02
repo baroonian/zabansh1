@@ -161,6 +161,4 @@ function BookCard({ book }: { book: Book }) {
     </Link>
   )
 }
-const { data: { session } } = await supabase.auth.getSession()
-console.log('JWT Claims:', session?.access_token)
-const user = await supabase.auth.getUser()
+
