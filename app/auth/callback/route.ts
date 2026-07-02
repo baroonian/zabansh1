@@ -14,9 +14,18 @@ export async function GET(request: NextRequest) {
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
       {
         cookies: {
-          getAll: () => cookieStore.getAll(),
-          setAll: (cookiesToSet) => {
+          getAll() {
+            return cookieStore.getAll()
+          },
+          setAll(
+            cookiesToSet: {
+              name: string
+              value: string
+              options?: Record<string, unknown>
+            }[]
+          ) {
             cookiesToSet.forEach(({ name, value, options }) =>
+              // @ts-expect-error - options type mismatch
               cookieStore.set(name, value, options)
             )
           },
