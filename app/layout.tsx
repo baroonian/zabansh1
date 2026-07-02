@@ -1,11 +1,11 @@
-import type { Metadata } from 'next'
+import type { Metadata } from "next";
 import "./globals.css";
-import { Inter } from "next/font/google";
-import { Vazirmatn } from "next/font/google";
+import { Inter, Vazirmatn } from "next/font/google";
 
 const inter = Inter({
   subsets: ["latin"],
   variable: "--font-inter",
+  display: "swap",
 });
 
 const vazirmatn = Vazirmatn({
@@ -15,16 +15,20 @@ const vazirmatn = Vazirmatn({
 });
 
 export const metadata: Metadata = {
-  title: 'English Shadowing | یادگیری زبان به روش شدویینگ',
-  description: 'یادگیری آسان زبان بدون تلاش',
-}
+  title: "Your App",
+  description: "Your app description",
+};
 
 export default function RootLayout({
+  children,
+}: Readonly<{
+  children: React.ReactNode;
+}>) {
   return (
-    <html lang="fa" dir="rtl">
+    <html lang="fa" dir="rtl" className={`${inter.variable} ${vazirmatn.variable}`}>
       <body className="min-h-screen bg-ocean-950 text-slate-200 antialiased">
         {children}
       </body>
     </html>
-  )
+  );
 }
