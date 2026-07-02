@@ -27,14 +27,6 @@ console.log('📂 Categories Response:', {
   count: catsRes.data?.length
 })
 
-const { data: { session } } = await supabase.auth.getSession()
-console.log('JWT Claims:', session?.access_token)
-
-// برای دیدن role:
-const user = await supabase.auth.getUser()
-// اگه درست کار کرد، توی metadata یا JWT باید role رو ببینی
-
-
   const totalWords    = wordCountRes.count ?? 0
   const knownWords    = (knownRes.data ?? []).filter(w => w.status === 'known').length
   const learningWords = (knownRes.data ?? []).filter(w => w.status === 'learning').length

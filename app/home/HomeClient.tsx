@@ -12,7 +12,7 @@ const LEVEL_FILTERS = [
   { key: 'advanced',     label: 'سطح پیشرفته',   icon: '🔥' },
   { key: 'children',     label: 'کودک',           icon: '🧒' },
   { key: 'adult',        label: 'بزرگسال',        icon: '👤' },
-  { key: 'Movie & TV',        label: 'فیلم و سریال',        icon: '👤' },
+  { key: 'Movie & TV',   label: 'فیلم و سریال',   icon: '👤' },
 ]
 
 const LEVEL_COLORS: Record<string, string> = {
@@ -36,9 +36,10 @@ export default function HomeClient({ profile, books, categories, stats }: Props)
     : books.filter(b => {
         if (activeLevel === 'children') return b.category?.name_fa?.includes('کودک')
         if (activeLevel === 'adult')    return b.category?.name_fa?.includes('بزرگسال')
-          if (activeLevel === 'adult')    return b.category?.name_fa?.includes('سطح ساده')
-            if (activeLevel === 'adult')    return b.category?.name_fa?.includes('سطح متوسط')
-              if (activeLevel === 'adult')    return b.category?.name_fa?.includes('سطح پیشرفته')
+        if (activeLevel === 'beginner')    return b.category?.name_fa?.includes('سطح ساده')
+        if (activeLevel === 'intermediate')    return b.category?.name_fa?.includes('سطح متوسط')
+        if (activeLevel === 'advanced')    return b.category?.name_fa?.includes('سطح پیشرفته')
+        if (activeLevel === 'Movie & TV')    return b.category?.name_fa?.includes('فیلم و سریال')
         return b.level === activeLevel
       })
 
@@ -160,3 +161,6 @@ function BookCard({ book }: { book: Book }) {
     </Link>
   )
 }
+const { data: { session } } = await supabase.auth.getSession()
+console.log('JWT Claims:', session?.access_token)
+const user = await supabase.auth.getUser()
