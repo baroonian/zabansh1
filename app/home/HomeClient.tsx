@@ -36,6 +36,9 @@ export default function HomeClient({ profile, books, categories, stats }: Props)
     : books.filter(b => {
         if (activeLevel === 'children') return b.category?.name_fa?.includes('کودک')
         if (activeLevel === 'adult')    return b.category?.name_fa?.includes('بزرگسال')
+          if (activeLevel === 'adult')    return b.category?.name_fa?.includes('سطح ساده')
+            if (activeLevel === 'adult')    return b.category?.name_fa?.includes('سطح متوسط')
+              if (activeLevel === 'adult')    return b.category?.name_fa?.includes('سطح پیشرفته')
         return b.level === activeLevel
       })
 
