@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { supabase } from '@/lib/supabase'; // مسیر کلاینت شما
+import { createClient } from '@/supabase/client';
 import Link from 'next/link';
 
 const menuItems = [
@@ -16,6 +16,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const [loading, setLoading] = useState(true);
   const [authorized, setAuthorized] = useState(false);
   const router = useRouter();
+  const supabase = createClient();
 
   useEffect(() => {
     const checkAccess = async () => {
