@@ -96,7 +96,7 @@ function LessonModal({ lesson, chapterId, onClose, onSaved }: {
       </div>
       <div className="grid grid-cols-3 gap-3">
         <Inp label="شماره" value={f.number} onChange={v => setF(x => ({ ...x, number: v }))} type="number" />
-        <Sel label="سختی" value={f.difficulty} onChange={v => setF(x => ({ ...x, difficulty: v }))}
+        <Sel label="سختی" value={f.difficulty} onChange={v => setF(x => ({ ...x, difficulty: v as 'easy' | 'medium' | 'hard' }))}
           opts={[{ v: 'easy', l: 'آسان' }, { v: 'medium', l: 'متوسط' }, { v: 'hard', l: 'دشوار' }]} />
         <Inp label="مدت (ثانیه)" value={f.estimated_duration_sec} onChange={v => setF(x => ({ ...x, estimated_duration_sec: v }))} type="number" />
       </div>
@@ -251,7 +251,7 @@ function BookModal({ book, cats, onClose, onSaved }: {
             opts={cats.map(c => ({ v: c.id, l: c.name_fa }))} />
         </div>
         <div className="grid grid-cols-2 gap-3">
-          <Sel label="سطح" value={f.level} onChange={v => setF(x => ({ ...x, level: v }))}
+          <Sel label="سطح" value={f.level} onChange={v => setF(x => ({ ...x, level: v as 'beginner' | 'intermediate' | 'advanced' }))}
             opts={[{ v: 'beginner', l: 'سطح ساده' }, { v: 'intermediate', l: 'سطح متوسط' }, { v: 'advanced', l: 'سطح پیشرفته' }]} />
           <Inp label="ترتیب" value={f.sort_order} onChange={v => setF(x => ({ ...x, sort_order: v }))} type="number" />
         </div>
