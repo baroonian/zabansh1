@@ -88,3 +88,36 @@ export interface Progress {
   completed_at?: string
   updated_at: string
 }
+
+// ─── Subscription Plans ───────────────────────────────────────
+export type PlanType = 'free' | 'silver' | 'gold'
+export type BillingCycle = 'monthly' | 'yearly'
+
+export interface Plan {
+  id: string
+  name: PlanType
+  name_fa: string
+  description?: string
+  price_monthly: number
+  price_yearly: number
+  features: string[]
+  max_books?: number
+  max_downloads?: number
+  is_active: boolean
+  created_at: string
+  updated_at: string
+}
+
+export interface UserSubscription {
+  id: string
+  user_id: string
+  plan_id: string
+  billing_cycle: BillingCycle
+  status: 'active' | 'expired' | 'cancelled' | 'trial'
+  started_at: string
+  expires_at: string
+  amount_paid: number
+  created_at: string
+  plan?: Plan
+  user?: UserProfile
+}

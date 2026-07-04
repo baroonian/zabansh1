@@ -7,27 +7,17 @@ export default async function HomePage() {
   const { data: { user } } = await sb.auth.getUser()
   if (!user) redirect('/auth/login')
 
-  const [profileRes, booksRes, catsRes, wordCountRes, knownRes] = await Promise.all([
+  const [profileRes, booksRes, catsRes, knownRes] = await Promise.all([
     sb.from('users').select('*').eq('id', user.id).single(),
     sb.from('books').select('*, category:categories(id,name_fa,color)').eq('is_active', true).order('sort_order'),
     sb.from('categories').select('*').eq('is_active', true).order('sort_order'),
-    sb.from('word_timestamps').select('id', { count: 'exact', head: true }),
     sb.from('user_word_status').select('id,status').eq('user_id', user.id),
   ])
 
-  console.log('📚 Books Response:', {
-  data: booksRes.data,
-  error: booksRes.error,
-  count: booksRes.data?.length
-})
+  // word_timestamps ممکنه خالی باشه
+  const wordCountRes = await sb.from('word_timestamps').select('id', { count:'exact', head:true }).then(r => r).catch(() => ({ count: 0 }))
 
-console.log('📂 Categories Response:', {
-  data: catsRes.data,
-  error: catsRes.error,
-  count: catsRes.data?.length
-})
-
-  const totalWords    = wordCountRes.count ?? 0
+  const totalWords    = (wordCountRes as any)?.count ?? 0
   const knownWords    = (knownRes.data ?? []).filter(w => w.status === 'known').length
   const learningWords = (knownRes.data ?? []).filter(w => w.status === 'learning').length
   const pct = totalWords > 0 ? Math.round((knownWords / totalWords) * 100) : 0

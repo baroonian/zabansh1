@@ -1,32 +1,21 @@
-import Link from 'next/link';
+import { createClient } from '@/lib/supabase/server'
+import { redirect } from 'next/navigation'
+import AdminSidebar from './AdminSidebar'
 
-const menuItems = [
-  { label: 'دسته‌بندی‌ها', href: '/admin/categories' },
-  { label: 'کتاب‌ها', href: '/admin/books' },
-  { label: 'کاربران', href: '/admin/users' },
-  { label: 'پلن‌های اشتراک', href: '/admin/plans' },
-];
+export default async function AdminLayout({ children }: { children: React.ReactNode }) {
+  const sb = await createClient()
+  const { data: { user } } = await sb.auth.getUser()
+  if (!user) redirect('/auth/login')
 
-export default function AdminLayout({ children }: { children: React.ReactNode }) {
+  const { data: profile } = await sb.from('users').select('is_admin').eq('id', user.id).single()
+  if (!profile?.is_admin) redirect('/home')
+
   return (
-    <div className="flex h-screen font-vazir" dir="rtl">
-      <aside className="w-64 bg-gray-900 text-white p-4">
-        <h2 className="text-lg font-bold mb-6">پنل مدیریت</h2>
-        <nav className="flex flex-col gap-2">
-          {menuItems.map((item) => (
-            <Link
-              key={item.href}
-              href={item.href}
-              className="px-3 py-2 rounded hover:bg-gray-700 transition"
-            >
-              {item.label}
-            </Link>
-          ))}
-        </nav>
-      </aside>
-      <main className="flex-1 p-6 overflow-y-auto bg-gray-50">
+    <div className="flex min-h-screen" dir="rtl">
+      <AdminSidebar />
+      <div className="flex-1 bg-ocean-950 overflow-auto">
         {children}
-      </main>
+      </div>
     </div>
-  );
+  )
 }

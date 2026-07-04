@@ -13,9 +13,11 @@ const config: Config = {
           950: '#07111f',
           900: '#0d1e33',
           800: '#112240',
+          750: '#142848',
           700: '#162e52',
           600: '#1d3557',
           500: '#274672',
+          400: '#3d6494',
         },
         amber: {
           400: '#fbbf24',
@@ -23,8 +25,7 @@ const config: Config = {
         },
       },
       fontFamily: {
-        sans: ['var(--font-vazir)', 'var(--font-inter)', 'system-ui', 'sans-serif'],
-        mono: ['var(--font-mono)', 'monospace'],
+        sans: ['Vazirmatn', 'Inter', 'system-ui', 'sans-serif'],
       },
       animation: {
         'fade-up': 'fadeUp 0.3s ease forwards',

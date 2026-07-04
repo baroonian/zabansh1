@@ -31,7 +31,6 @@ export async function proxy(request: NextRequest) {
 
   const path = request.nextUrl.pathname
   const isAuthPage = path.startsWith('/auth')
-  const isAdminPage = path.startsWith('/admin')
 
   if (!user && !isAuthPage) {
     return NextResponse.redirect(new URL('/auth/login', request.url))
@@ -39,22 +38,6 @@ export async function proxy(request: NextRequest) {
 
   if (user && isAuthPage) {
     return NextResponse.redirect(new URL('/home', request.url))
-  }
-
-  if (isAdminPage) {
-    if (!user) {
-      return NextResponse.redirect(new URL('/auth/login', request.url))
-    }
-
-    const { data: profile } = await supabase
-      .from('users')
-      .select('role')
-      .eq('id', user.id)
-      .single()
-
-    if (profile?.role !== 'admin') {
-      return NextResponse.redirect(new URL('/home', request.url))
-    }
   }
 
   return supabaseResponse
