@@ -15,7 +15,8 @@ export default async function HomePage() {
   ])
 
   // word_timestamps ممکنه خالی باشه
-  const wordCountRes = await sb.from('word_timestamps').select('id', { count:'exact', head:true }).then(r => r).catch(() => ({ count: 0 }))
+  const wordCountRes = await Promise.resolve(
+  sb.from('word_timestamps').select('id', { count: 'exact', head: true })).catch(() => ({ count: 0 }))
 
   const totalWords    = (wordCountRes as any)?.count ?? 0
   const knownWords    = (knownRes.data ?? []).filter(w => w.status === 'known').length
