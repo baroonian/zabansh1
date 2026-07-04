@@ -5,25 +5,29 @@ export default async function AdminDashboard() {
   const sb = await createClient()
 
   const [usersR, booksR, lessonsR, catsR] = await Promise.all([
-    sb.from('users').select('id,created_at,is_blocked', { count:'exact' }),
-    sb.from('books').select('id', { count:'exact' }).eq('is_active', true),
-    sb.from('lessons').select('id', { count:'exact' }).eq('is_published', true),
-    sb.from('categories').select('id', { count:'exact' }).eq('is_active', true),
+    sb.from('users').select('id,created_at,is_blocked', { count: 'exact' }),
+    sb.from('books').select('id', { count: 'exact' }).eq('is_active', true),
+    sb.from('lessons').select('id', { count: 'exact' }).eq('is_published', true),
+    sb.from('categories').select('id', { count: 'exact' }).eq('is_active', true),
   ])
 
   // user_subscriptions ممکنه هنوز جدول نداشته باشه
-  const subsR = await sb.from('user_subscriptions').select('id,status').then(r => r).catch(() => ({ data: [] }))
-  const subsData = (subsR as any)?.data ?? []
-  const activeSubs = subsData.filter((s: any) => s.status === 'active').length
+  let activeSubs = 0
+  let totalSubs = 0
+  try {
+    const { data } = await sb.from('user_subscriptions').select('id,status')
+    totalSubs = data?.length ?? 0
+    activeSubs = data?.filter((s: { status: string }) => s.status === 'active').length ?? 0
+  } catch { /* جدول هنوز ساخته نشده */ }
 
   const today = new Date().toISOString().split('T')[0]
-  const newToday = (usersR.data ?? []).filter((u: any) => u.created_at?.startsWith(today)).length
+  const newToday = (usersR.data ?? []).filter((u: { created_at?: string }) => u.created_at?.startsWith(today)).length
 
   const stats = [
-    { label:'کل کاربران',    value: usersR.count ?? 0, sub: `+${newToday} امروز`,    color:'#6366f1', icon:'👥', href:'/admin/users' },
-    { label:'کتاب فعال',     value: booksR.count ?? 0, sub: `${catsR.count} دسته`,  color:'#10b981', icon:'📚', href:'/admin/books' },
-    { label:'درس منتشرشده',  value: lessonsR.count ?? 0, sub: '',                    color:'#f59e0b', icon:'🎵', href:'/admin/books' },
-    { label:'اشتراک فعال',   value: activeSubs,         sub: `از ${subsData.length} کل`, color:'#3b82f6', icon:'💎', href:'/admin/plans' },
+    { label: 'کل کاربران',   value: usersR.count ?? 0,   sub: `+${newToday} امروز`,    color: '#6366f1', icon: '👥', href: '/admin/users' },
+    { label: 'کتاب فعال',    value: booksR.count ?? 0,   sub: `${catsR.count} دسته`,   color: '#10b981', icon: '📚', href: '/admin/books' },
+    { label: 'درس منتشرشده', value: lessonsR.count ?? 0, sub: '',                       color: '#f59e0b', icon: '🎵', href: '/admin/books' },
+    { label: 'اشتراک فعال',  value: activeSubs,           sub: `از ${totalSubs} کل`,    color: '#3b82f6', icon: '💎', href: '/admin/plans' },
   ]
 
   return (
@@ -47,10 +51,10 @@ export default async function AdminDashboard() {
       <h2 className="text-sm font-semibold text-slate-400 mb-3 uppercase tracking-wider">دسترسی سریع</h2>
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         {[
-          { href:'/admin/categories', label:'مدیریت دسته‌بندی‌ها', icon:'🗂️', desc:'افزودن، ویرایش، حذف' },
-          { href:'/admin/books',      label:'مدیریت کتاب‌ها',       icon:'📚', desc:'کتاب، فصل، درس' },
-          { href:'/admin/users',      label:'مدیریت کاربران',        icon:'👥', desc:'دسترسی و اشتراک' },
-          { href:'/admin/plans',      label:'پلن‌های اشتراک',        icon:'💎', desc:'رایگان، نقره‌ای، طلایی' },
+          { href: '/admin/categories', label: 'مدیریت دسته‌بندی‌ها', icon: '🗂️', desc: 'افزودن، ویرایش، حذف' },
+          { href: '/admin/books',      label: 'مدیریت کتاب‌ها',       icon: '📚', desc: 'کتاب، فصل، درس' },
+          { href: '/admin/users',      label: 'مدیریت کاربران',        icon: '👥', desc: 'دسترسی و اشتراک' },
+          { href: '/admin/plans',      label: 'پلن‌های اشتراک',        icon: '💎', desc: 'رایگان، نقره‌ای، طلایی' },
         ].map(q => (
           <Link key={q.href} href={q.href}
             className="bg-ocean-800 border border-ocean-600 rounded-xl p-4 hover:border-amber-500/50 hover:bg-ocean-700 transition-all group">
