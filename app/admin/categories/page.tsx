@@ -86,6 +86,11 @@ export default function CategoriesPage() {
     if (modal === 'new') await sb.from('categories').insert(payload)
     else await sb.from('categories').update(payload).eq('id', (modal as Category).id)
     setSaving(false); setModal(null); load()
+    const { error } = modal === 'new'
+    ? await sb.from('categories').insert(payload)
+    : await sb.from('categories').update(payload).eq('id', (modal as Category).id)
+  if (error) { alert(error.message); setSaving(false); return }
+  setSaving(false); setModal(null); load()
   }
 
   const del = async (id: string) => {
