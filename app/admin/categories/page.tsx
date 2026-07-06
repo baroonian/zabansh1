@@ -154,10 +154,13 @@ export default function CategoriesPage() {
           {cats.map(c => (
             <div key={c.id} className="bg-ocean-800 border border-ocean-600 rounded-2xl overflow-hidden hover:border-ocean-500 transition-all hover:-translate-y-0.5">
               <div className="h-28 flex items-center justify-center relative" style={{ background: (c as any).image_url ? undefined : `${c.color}22` }}>
-                {(c as any).image_url
-                  ? <img src={(c as any).image_url} alt={c.name_fa} className="w-full h-full object-cover" />
-                  : <span className="text-5xl">{c.icon || '📁'}</span>
-                }
+              {(c as any).image_url && (
+                <img 
+                  src={(c as any).image_url} 
+                  alt={c.name_fa} 
+                  className="w-full h-full object-cover" 
+                />
+              )}
                 {!c.is_active && <span className="absolute top-2 left-2 bg-red-900/80 text-red-300 text-xs px-2 py-0.5 rounded-full">غیرفعال</span>}
                 <div className="absolute top-2 right-2 w-3 h-3 rounded-full" style={{ background: c.color }} />
               </div>
