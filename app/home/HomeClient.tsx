@@ -6,13 +6,13 @@ import Speedometer from '@/components/ui/Speedometer'
 import type { Book, Category, UserProfile } from '@/types'
 
 const LEVEL_FILTERS = [
-  { key: 'all',          label: 'همه',           icon: '📚' },
+  { key: 'all',          label: 'همه',           icon: '' },
   { key: 'beginner',     label: 'سطح ساده',       icon: '🌱' },
   { key: 'intermediate', label: 'سطح متوسط',      icon: '📘' },
   { key: 'advanced',     label: 'سطح پیشرفته',   icon: '🔥' },
   { key: 'children',     label: 'کودک',           icon: '🧒' },
   { key: 'adult',        label: 'بزرگسال',        icon: '👤' },
-  { key: 'Movie & TV',   label: 'فیلم و سریال',   icon: '👤' },
+  { key: 'Movie & TV',   label: 'فیلم و سریال',   icon: '🎞️' },
 ]
 
 const LEVEL_COLORS: Record<string, string> = {
