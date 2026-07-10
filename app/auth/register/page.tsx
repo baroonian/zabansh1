@@ -3,6 +3,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
+import GoogleButton from '@/components/ui/GoogleButton'
 
 export default function RegisterPage() {
   const router = useRouter()
@@ -74,6 +75,14 @@ export default function RegisterPage() {
               {loading ? 'در حال ثبت‌نام...' : 'ساخت حساب کاربری'}
             </button>
           </form>
+
+          <div className="flex items-center gap-3 my-5">
+            <div className="flex-1 h-px bg-ocean-600" />
+            <span className="text-xs text-slate-500">یا</span>
+            <div className="flex-1 h-px bg-ocean-600" />
+          </div>
+
+          <GoogleButton />
         </div>
       </div>
     </div>

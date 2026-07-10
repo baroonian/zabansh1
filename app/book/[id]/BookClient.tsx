@@ -1,6 +1,7 @@
 'use client'
 import { useState } from 'react'
 import Link from 'next/link'
+import Image from 'next/image'
 import Navbar from '@/components/layout/Navbar'
 import type { Book, Chapter, Lesson, UserProfile } from '@/types'
 
@@ -38,10 +39,10 @@ export default function BookClient({ book, chapters, profile, progressMap }: Pro
           {/* Cover */}
           <div className="h-44 relative overflow-hidden" style={{background:book.cover_url?undefined:`linear-gradient(135deg,${color}18,${color}35)`}}>
             {book.cover_url
-              ? <img src={book.cover_url} alt={book.title_fa} className="w-full h-full object-cover" />
+              ? <Image src={book.cover_url} alt={book.title_fa} fill sizes="(max-width: 768px) 100vw, 700px" className="object-cover" priority />
               : <div className="w-full h-full flex items-center justify-center">
                   {book.category && (book.category as any).image_url
-                    ? <img src={(book.category as any).image_url} alt="" className="w-full h-full object-cover opacity-40" />
+                    ? <Image src={(book.category as any).image_url} alt="" fill sizes="700px" className="object-cover opacity-40" />
                     : <span className="text-7xl opacity-80">{book.level==='beginner'?'🌱':book.level==='intermediate'?'📘':'🔥'}</span>
                   }
                 </div>
@@ -95,7 +96,7 @@ export default function BookClient({ book, chapters, profile, progressMap }: Pro
                     <div className="w-10 h-10 rounded-lg overflow-hidden shrink-0 flex items-center justify-center"
                       style={{background:`${color}20`,border:`1px solid ${color}30`}}>
                       {ch.cover_url
-                        ? <img src={ch.cover_url} alt="" className="w-full h-full object-cover" />
+                        ? <Image src={ch.cover_url} alt="" width={40} height={40} className="w-full h-full object-cover" />
                         : <span className="text-sm font-bold" style={{color}}>{ch.number}</span>
                       }
                     </div>
@@ -132,7 +133,7 @@ export default function BookClient({ book, chapters, profile, progressMap }: Pro
                                 border:`1px solid ${isDone?'rgba(16,185,129,0.4)':'rgba(29,53,87,0.8)'}`
                               }}>
                               {l.cover_url
-                                ? <img src={l.cover_url} alt="" className="w-full h-full object-cover" />
+                                ? <Image src={l.cover_url} alt="" width={36} height={36} className="w-full h-full object-cover" />
                                 : <span className={`text-xs font-bold ${isDone?'text-green-400':'text-slate-500 group-hover:text-slate-300'}`}>
                                     {isDone ? '✓' : l.number}
                                   </span>

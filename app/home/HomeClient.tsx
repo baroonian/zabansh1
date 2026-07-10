@@ -1,6 +1,7 @@
 'use client'
 import { useState } from 'react'
 import Link from 'next/link'
+import Image from 'next/image'
 import Navbar from '@/components/layout/Navbar'
 import Speedometer from '@/components/ui/Speedometer'
 import type { Book, Category, UserProfile } from '@/types'
@@ -50,7 +51,7 @@ export default function HomeClient({ profile, books, categories, stats }: Props)
 
         {/* Speedometer */}
         <section className="text-center py-10">
-          <p className="text-lg text-slate-500 tracking-widest uppercase mb-1">پیشرفت کلی یادگیری</p>
+          <p className="text-xs text-slate-500 tracking-widest uppercase mb-1">پیشرفت کلی یادگیری</p>
           <div className="flex justify-center">
             <Speedometer pct={stats.pct} size={300} label={pctLabel} />
           </div>
@@ -109,11 +110,12 @@ function BookCard({ book }: { book:Book }) {
       {/* Cover image */}
       <div className="h-36 relative overflow-hidden" style={{background:book.cover_url?undefined:`linear-gradient(135deg,${color}18,${color}35)`}}>
         {book.cover_url ? (
-          <img src={book.cover_url} alt={book.title_fa} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
+          <Image src={book.cover_url} alt={book.title_fa} fill sizes="(max-width: 768px) 45vw, 220px"
+            className="object-cover group-hover:scale-105 transition-transform duration-300" loading="lazy" />
         ) : (
           <div className="w-full h-full flex items-center justify-center">
             {cat?.image_url
-              ? <img src={cat.image_url} alt={cat.name_fa} className="w-full h-full object-cover opacity-60" />
+              ? <Image src={cat.image_url} alt={cat.name_fa} fill sizes="220px" className="object-cover opacity-60" loading="lazy" />
               : <span className="text-5xl filter drop-shadow-lg">{icon}</span>
             }
           </div>
