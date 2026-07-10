@@ -8,7 +8,7 @@ export default async function LessonPage({ params }: { params: Promise<{ id: str
   const { data: { user } } = await sb.auth.getUser()
   if (!user) redirect('/auth/login')
 
-  const [lessonRes, profileRes, wordStatusRes, progressRes, timestampsRes] = await Promise.all([
+  const [lessonRes, profileRes, wordStatusRes, progressRes, timestampsRes, subtitleRes] = await Promise.all([
     sb.from('lessons')
       .select('*, chapter:chapters(number, title_fa, book:books(id,title_fa))')
       .eq('id', id)
@@ -17,6 +17,7 @@ export default async function LessonPage({ params }: { params: Promise<{ id: str
     sb.from('user_word_status').select('word,status').eq('user_id', user.id),
     sb.from('progress').select('*').eq('user_id', user.id).eq('lesson_id', id).maybeSingle(),
     sb.from('word_timestamps').select('word,word_index,start_ms,end_ms').eq('lesson_id', id).order('word_index'),
+    sb.from('subtitle_cues').select('cue_index,start_ms,end_ms,text').eq('lesson_id', id).order('cue_index'),
   ])
 
   if (!lessonRes.data) notFound()
@@ -32,6 +33,7 @@ export default async function LessonPage({ params }: { params: Promise<{ id: str
       initialWordStatus={wordMap}
       initialProgress={progressRes.data ?? null}
       wordTimestamps={timestampsRes.data ?? []}
+      subtitleCues={subtitleRes.data ?? []}
     />
   )
 }

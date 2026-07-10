@@ -7,6 +7,7 @@ export interface Category {
   color: string
   sort_order: number
   is_active: boolean
+  image_url?: string
   created_at: string
 }
 
@@ -34,6 +35,7 @@ export interface Chapter {
   title_fa: string
   title_en?: string
   description?: string
+  cover_url?: string
   book?: Book
   lessons?: Lesson[]
 }
@@ -47,9 +49,12 @@ export interface Lesson {
   text_en: string
   text_parsed?: Record<string, unknown>
   audio_url?: string
+  cover_url?: string
   difficulty?: 'easy' | 'medium' | 'hard'
   estimated_duration_sec?: number
   is_published: boolean
+  transcript_id?: string
+  transcription_status?: 'none' | 'processing' | 'done' | 'failed'
   chapter?: Chapter
 }
 
@@ -89,7 +94,6 @@ export interface Progress {
   updated_at: string
 }
 
-// ─── Subscription Plans ───────────────────────────────────────
 export type PlanType = 'free' | 'silver' | 'gold'
 export type BillingCycle = 'monthly' | 'yearly'
 

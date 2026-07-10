@@ -4,206 +4,211 @@ import Navbar from '@/components/layout/Navbar'
 import { createClient } from '@/lib/supabase/client'
 import type { Lesson, UserProfile, Progress } from '@/types'
 
-interface WordTimestamp { word: string; word_index: number; start_ms: number; end_ms: number }
+interface WordTimestamp { word:string; word_index:number; start_ms:number; end_ms:number }
+interface SubtitleCue { cue_index:number; start_ms:number; end_ms:number; text:string }
 
 interface Props {
-  lesson: Lesson & { chapter?: { number: number; title_fa: string; book?: { id: string; title_fa: string } } }
-  profile: UserProfile | null
+  lesson: Lesson & { chapter?:{ number:number; title_fa:string; book?:{ id:string; title_fa:string } } }
+  profile: UserProfile|null
   userId: string
-  initialWordStatus: Record<string, 'learning' | 'known'>
-  initialProgress: Progress | null
+  initialWordStatus: Record<string,'learning'|'known'>
+  initialProgress: Progress|null
   wordTimestamps: WordTimestamp[]
+  subtitleCues: SubtitleCue[]
 }
 
-function cleanWord(raw: string) {
-  return raw.toLowerCase().replace(/[^a-zA-Z']/g, '')
+function cleanWord(raw:string) { return raw.toLowerCase().replace(/[^a-zA-Z']/g,'') }
+
+function splitSentences(text:string): string[] {
+  const parts = text.match(/[^.!?\n]+[.!?\n]*/g) ?? [text]
+  return parts.map(s=>s.trim()).filter(Boolean)
 }
 
-// ── tokenize text into sentences ──────────────────────────────
-function tokenizeSentences(text: string): string[] {
-  return text.match(/[^.!?]+[.!?]*/g)?.map(s => s.trim()).filter(Boolean) ?? [text]
-}
-
-// ── find which sentence contains a given time ─────────────────
-function findActiveSentence(sentences: string[], timestamps: WordTimestamp[], currentMs: number): number {
+// برای حالت AI (word_timestamps) — پیدا کردن جمله فعال بر اساس شمارش کلمات
+function getActiveIdxByWords(sentences:string[], timestamps:WordTimestamp[], currentMs:number): number {
   if (!timestamps.length) return -1
-  const words = sentences.map((s, si) => ({
-    si,
-    words: s.toLowerCase().replace(/[^a-z\s']/g, '').split(/\s+/).filter(Boolean)
-  }))
-  let wordIdx = 0
-  for (let si = 0; si < words.length; si++) {
-    const count = words[si].words.length
-    const start = timestamps[wordIdx]?.start_ms ?? Infinity
-    const end   = timestamps[Math.min(wordIdx + count - 1, timestamps.length - 1)]?.end_ms ?? Infinity
-    if (currentMs >= start && currentMs <= end + 200) return si
-    wordIdx += count
+  let wIdx = 0
+  for (let si=0; si<sentences.length; si++) {
+    const wCount = sentences[si].split(/\s+/).filter(w=>cleanWord(w).length>0).length
+    const firstTs = timestamps[wIdx]
+    const lastTs  = timestamps[Math.min(wIdx+wCount-1, timestamps.length-1)]
+    if (!firstTs) break
+    const start = firstTs.start_ms
+    const end   = (lastTs?.end_ms ?? start) + 400
+    if (currentMs>=start && currentMs<=end) return si
+    if (currentMs<start) return Math.max(0, si-1)
+    wIdx += wCount
   }
-  // fallback: find nearest sentence
-  let wordIdx2 = 0
-  for (let si = 0; si < words.length; si++) {
-    const count = words[si].words.length
-    const start = timestamps[wordIdx2]?.start_ms ?? Infinity
-    if (currentMs < start) return Math.max(0, si - 1)
-    wordIdx2 += count
-  }
-  return words.length - 1
+  return sentences.length-1
 }
 
-export default function LessonClient({ lesson, profile, userId, initialWordStatus, initialProgress, wordTimestamps }: Props) {
+// برای حالت SRT — پیدا کردن cue فعال بر اساس بازه زمانی خودش
+function getActiveIdxByCues(cues:SubtitleCue[], currentMs:number): number {
+  if (!cues.length) return -1
+  for (let i=0; i<cues.length; i++) {
+    const buffer = 150
+    if (currentMs>=cues[i].start_ms && currentMs<=cues[i].end_ms+buffer) return i
+    if (currentMs<cues[i].start_ms) return Math.max(0, i-1)
+  }
+  return cues.length-1
+}
+
+function fmt(ms:number) {
+  const s = Math.floor(ms/1000)
+  return `${Math.floor(s/60)}:${String(s%60).padStart(2,'0')}`
+}
+
+export default function LessonClient({
+  lesson, profile, userId, initialWordStatus, initialProgress, wordTimestamps, subtitleCues
+}: Props) {
   const sb = createClient()
 
-  // ── word status ──────────────────────────────────────────────
-  const [wordStatus, setWordStatus] = useState<Record<string, 'learning' | 'known'>>(initialWordStatus)
-  const [finished,   setFinished]   = useState(initialProgress?.completed ?? false)
+  const [wordStatus, setWordStatus] = useState<Record<string,'learning'|'known'>>(initialWordStatus)
+  const [finished,   setFinished]   = useState(initialProgress?.completed??false)
   const [saving,     setSaving]     = useState(false)
 
-  // ── audio player state ───────────────────────────────────────
-  const audioRef        = useRef<HTMLAudioElement>(null)
-  const sentenceRefs    = useRef<(HTMLDivElement | null)[]>([])
-  const [playing,       setPlaying]       = useState(false)
-  const [currentMs,     setCurrentMs]     = useState(0)
-  const [duration,      setDuration]      = useState(0)
-  const [speed,         setSpeed]         = useState(1)
-  const [activeSentIdx, setActiveSentIdx] = useState(-1)
-  const [audioError,    setAudioError]    = useState(false)
+  const audioRef  = useRef<HTMLAudioElement>(null)
+  const segRefs    = useRef<(HTMLDivElement|null)[]>([])
+  const [playing,   setPlaying]   = useState(false)
+  const [currentMs, setCurrentMs] = useState(0)
+  const [duration,  setDuration]  = useState(0)
+  const [speed,     setSpeed]     = useState(1)
+  const [activeIdx, setActiveIdx] = useState(-1)
+  const [audioErr,  setAudioErr]  = useState(false)
   const hasAudio = !!lesson.audio_url
 
-  const sentences = tokenizeSentences(lesson.text_en)
+  // ── منبع sync: اولویت با SRT، وگرنه AI word_timestamps ──────
+  const srtMode = subtitleCues.length > 0
+  const aiMode  = !srtMode && wordTimestamps.length > 0
+  const hasSync = srtMode || aiMode
 
-  // ── audio event handlers ─────────────────────────────────────
-  useEffect(() => {
+  const segments: string[] = srtMode
+    ? subtitleCues.map(c => c.text)
+    : splitSentences(lesson.text_en)
+
+  useEffect(()=>{
     const audio = audioRef.current
     if (!audio) return
-
     const onTime = () => {
-      const ms = audio.currentTime * 1000
+      const ms = audio.currentTime*1000
       setCurrentMs(ms)
-      if (wordTimestamps.length) {
-        const idx = findActiveSentence(sentences, wordTimestamps, ms)
-        setActiveSentIdx(idx)
-        // auto-scroll
-        if (idx >= 0 && sentenceRefs.current[idx]) {
-          sentenceRefs.current[idx]!.scrollIntoView({ behavior: 'smooth', block: 'center' })
-        }
+      if (hasSync) {
+        const idx = srtMode
+          ? getActiveIdxByCues(subtitleCues, ms)
+          : getActiveIdxByWords(segments, wordTimestamps, ms)
+        setActiveIdx(prev => {
+          if (prev !== idx && idx >= 0) {
+            requestAnimationFrame(()=>{
+              segRefs.current[idx]?.scrollIntoView({ behavior:'smooth', block:'center' })
+            })
+          }
+          return idx
+        })
       }
     }
-    const onDuration = () => setDuration(audio.duration * 1000)
-    const onPlay     = () => setPlaying(true)
-    const onPause    = () => setPlaying(false)
-    const onEnded    = () => { setPlaying(false); setActiveSentIdx(-1) }
-    const onError    = () => setAudioError(true)
+    const onMeta  = () => setDuration(audio.duration*1000)
+    const onPlay  = () => setPlaying(true)
+    const onPause = () => setPlaying(false)
+    const onEnded = () => { setPlaying(false); setActiveIdx(-1) }
+    const onError = () => setAudioErr(true)
 
-    audio.addEventListener('timeupdate',  onTime)
-    audio.addEventListener('loadedmetadata', onDuration)
-    audio.addEventListener('play',        onPlay)
-    audio.addEventListener('pause',       onPause)
-    audio.addEventListener('ended',       onEnded)
-    audio.addEventListener('error',       onError)
+    audio.addEventListener('timeupdate',     onTime)
+    audio.addEventListener('loadedmetadata', onMeta)
+    audio.addEventListener('play',           onPlay)
+    audio.addEventListener('pause',          onPause)
+    audio.addEventListener('ended',          onEnded)
+    audio.addEventListener('error',          onError)
     return () => {
-      audio.removeEventListener('timeupdate',  onTime)
-      audio.removeEventListener('loadedmetadata', onDuration)
-      audio.removeEventListener('play',        onPlay)
-      audio.removeEventListener('pause',       onPause)
-      audio.removeEventListener('ended',       onEnded)
-      audio.removeEventListener('error',       onError)
+      audio.removeEventListener('timeupdate',     onTime)
+      audio.removeEventListener('loadedmetadata', onMeta)
+      audio.removeEventListener('play',           onPlay)
+      audio.removeEventListener('pause',          onPause)
+      audio.removeEventListener('ended',          onEnded)
+      audio.removeEventListener('error',          onError)
     }
-  }, [sentences, wordTimestamps])
+  },[segments, wordTimestamps, subtitleCues, srtMode, hasSync])
 
   const togglePlay = () => {
-    const audio = audioRef.current
-    if (!audio) return
-    if (playing) audio.pause()
-    else audio.play().catch(() => setAudioError(true))
+    const a = audioRef.current; if (!a) return
+    if (playing) a.pause(); else a.play().catch(()=>setAudioErr(true))
   }
 
-  const seek = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const audio = audioRef.current
-    if (!audio) return
+  const seek = (e:React.ChangeEvent<HTMLInputElement>) => {
+    const a = audioRef.current; if (!a) return
     const ms = Number(e.target.value)
-    audio.currentTime = ms / 1000
-    setCurrentMs(ms)
+    a.currentTime = ms/1000; setCurrentMs(ms)
   }
 
-  const changeSpeed = (s: number) => {
+  const changeSpeed = (s:number) => {
     setSpeed(s)
     if (audioRef.current) audioRef.current.playbackRate = s
   }
 
-  const skipSentence = (dir: 1 | -1) => {
-    const idx = Math.max(0, Math.min(sentences.length - 1, activeSentIdx + dir))
-    // find start_ms of first word in that sentence
-    let wordIdx = 0
-    for (let si = 0; si < idx; si++) {
-      const count = sentences[si].toLowerCase().replace(/[^a-z\s']/g, '').split(/\s+/).filter(Boolean).length
-      wordIdx += count
+  const jumpToIndex = (si:number) => {
+    let ms = 0
+    if (srtMode) {
+      ms = subtitleCues[si]?.start_ms ?? 0
+    } else {
+      let wIdx = 0
+      for (let i=0; i<si; i++) wIdx += segments[i].split(/\s+/).filter(w=>cleanWord(w).length>0).length
+      ms = wordTimestamps[wIdx]?.start_ms ?? 0
     }
-    const ms = wordTimestamps[wordIdx]?.start_ms ?? 0
-    if (audioRef.current) { audioRef.current.currentTime = ms / 1000; setCurrentMs(ms) }
+    if (audioRef.current) { audioRef.current.currentTime = ms/1000; setCurrentMs(ms) }
+    segRefs.current[si]?.scrollIntoView({ behavior:'smooth', block:'center' })
   }
 
-  const fmt = (ms: number) => {
-    const s = Math.floor(ms / 1000)
-    return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`
+  const skip = (dir:1|-1) => {
+    const next = Math.max(0, Math.min(segments.length-1, activeIdx+dir))
+    jumpToIndex(next)
   }
 
-  // ── word toggle ──────────────────────────────────────────────
-  const toggleWord = useCallback(async (raw: string) => {
+  const toggleWord = useCallback(async (raw:string) => {
     const word = cleanWord(raw)
-    if (!word || word.length < 2) return
+    if (!word || word.length<2) return
     const cur  = wordStatus[word]
-    const next = cur === 'learning' ? undefined : 'learning'
+    const next = cur==='learning' ? undefined : 'learning'
     setWordStatus(prev => {
-      const n = { ...prev }
-      if (!next) delete n[word]
-      else n[word] = 'learning'
+      const n = {...prev}
+      if (!next) delete n[word]; else n[word]='learning'
       return n
     })
-    if (next === 'learning') {
+    if (next==='learning') {
       await sb.from('user_word_status').upsert(
-        { user_id: userId, word, status: 'learning', lesson_id: lesson.id },
-        { onConflict: 'user_id,word' }
+        { user_id:userId, word, status:'learning', lesson_id:lesson.id },
+        { onConflict:'user_id,word' }
       )
     } else {
-      await sb.from('user_word_status').delete().eq('user_id', userId).eq('word', word)
+      await sb.from('user_word_status').delete().eq('user_id',userId).eq('word',word)
     }
-  }, [wordStatus, userId, lesson.id, sb])
+  },[wordStatus, userId, lesson.id, sb])
 
-  // ── mark complete ────────────────────────────────────────────
   const markComplete = async () => {
     setSaving(true)
     await sb.from('progress').upsert({
-      user_id: userId, lesson_id: lesson.id, completed: true,
-      completion_percentage: 100, last_position_ms: Math.round(currentMs),
-      play_count: 1, total_time_spent_ms: Math.round(duration),
-      completed_at: new Date().toISOString(),
-    }, { onConflict: 'user_id,lesson_id' })
-    setSaving(false)
-    setFinished(true)
+      user_id:userId, lesson_id:lesson.id, completed:true,
+      completion_percentage:100, last_position_ms:Math.round(currentMs),
+      play_count:1, total_time_spent_ms:Math.round(duration),
+      completed_at:new Date().toISOString(),
+    },{ onConflict:'user_id,lesson_id' })
+    setSaving(false); setFinished(true)
   }
 
-  const unknownWords = Object.entries(wordStatus).filter(([, s]) => s === 'learning').map(([w]) => w)
-  const pct = duration > 0 ? Math.round((currentMs / duration) * 100) : 0
+  const unknownWords = Object.entries(wordStatus).filter(([,s])=>s==='learning').map(([w])=>w)
+  const pct = duration>0 ? Math.round((currentMs/duration)*100) : 0
 
   return (
-    <div className="min-h-screen flex flex-col">
+    <div className="min-h-screen flex flex-col bg-ocean-950">
       <Navbar profile={profile} />
 
-      {/* hidden audio element */}
-      {hasAudio && (
-        <audio ref={audioRef} src={lesson.audio_url!} preload="metadata" />
-      )}
+      {hasAudio && <audio ref={audioRef} src={lesson.audio_url!} preload="metadata" />}
 
       {/* Breadcrumb */}
-      <div className="border-b border-ocean-600 bg-ocean-900/50 px-6 py-2.5">
-        <div className="max-w-3xl mx-auto flex items-center gap-2 text-xs text-slate-500">
-          <a href="/home" className="hover:text-slate-300">خانه</a>
+      <div className="border-b border-ocean-700 bg-ocean-900/60 px-6 py-2.5">
+        <div className="max-w-3xl mx-auto flex items-center gap-2 text-xs text-slate-500 flex-wrap">
+          <a href="/home" className="hover:text-slate-300 transition-colors">خانه</a>
           <span>›</span>
           {lesson.chapter?.book && (
-            <>
-              <a href={`/book/${lesson.chapter.book.id}`} className="hover:text-slate-300">{lesson.chapter.book.title_fa}</a>
-              <span>›</span>
-            </>
+            <><a href={`/book/${lesson.chapter.book.id}`} className="hover:text-slate-300 transition-colors">{lesson.chapter.book.title_fa}</a><span>›</span></>
           )}
           <span className="text-slate-400">{lesson.chapter?.title_fa}</span>
           <span>›</span>
@@ -211,56 +216,73 @@ export default function LessonClient({ lesson, profile, userId, initialWordStatu
         </div>
       </div>
 
-      <div className="flex-1 max-w-3xl mx-auto w-full px-4 pt-6 pb-44">
+      <div className="flex-1 max-w-3xl mx-auto w-full px-4 pt-6 pb-52">
 
-        {/* Title */}
-        <div className="mb-5">
-          <h1 className="text-xl font-bold text-white">{lesson.title_fa}</h1>
-          {lesson.title_en && <p className="text-sm text-slate-400 mt-1">{lesson.title_en}</p>}
-          <div className="flex gap-3 mt-2 text-xs text-slate-500">
-            {lesson.difficulty && <span>سختی: {lesson.difficulty}</span>}
-            {lesson.estimated_duration_sec && <span>⏱ {Math.ceil(lesson.estimated_duration_sec / 60)} دقیقه</span>}
+        {/* Header */}
+        <div className="mb-5 flex gap-4 items-start">
+          {lesson.cover_url && (
+            <img src={lesson.cover_url} alt={lesson.title_fa} className="w-20 h-20 rounded-xl object-cover shrink-0 border border-ocean-600" />
+          )}
+          <div>
+            <h1 className="text-xl font-bold text-white">{lesson.title_fa}</h1>
+            {lesson.title_en && <p className="text-sm text-slate-400 mt-1">{lesson.title_en}</p>}
+            <div className="flex gap-3 mt-2 text-xs text-slate-500 flex-wrap">
+              {lesson.difficulty && (
+                <span className={`px-2 py-0.5 rounded-full ${lesson.difficulty==='easy'?'bg-green-900/40 text-green-400':lesson.difficulty==='medium'?'bg-amber-900/40 text-amber-400':'bg-red-900/40 text-red-400'}`}>
+                  {lesson.difficulty==='easy'?'آسان':lesson.difficulty==='medium'?'متوسط':'دشوار'}
+                </span>
+              )}
+              {lesson.estimated_duration_sec && <span>⏱ {Math.ceil(lesson.estimated_duration_sec/60)} دقیقه</span>}
+              {hasAudio && <span className="text-amber-500/80">🎧 فایل صوتی دارد</span>}
+              {srtMode && <span className="text-green-500/80">✓ زیرنویس SRT (دقیق)</span>}
+              {aiMode  && <span className="text-blue-400/80">✓ همگام‌سازی هوش مصنوعی</span>}
+            </div>
           </div>
         </div>
 
         {/* Hint */}
-        <div className="flex items-center gap-2 mb-5 px-4 py-2.5 bg-ocean-800/60 rounded-xl border border-ocean-600 text-xs text-slate-400">
-          <span>💡</span>
-          <span>برای علامت‌گذاری کلمات ناآشنا روی آن‌ها کلیک کن</span>
-          {hasAudio && <span className="mr-auto text-amber-500/70">🎧 فایل صوتی موجود است</span>}
+        <div className="flex items-start gap-2 mb-5 px-4 py-3 bg-ocean-800/60 rounded-xl border border-ocean-700 text-xs text-slate-400">
+          <span className="mt-0.5">💡</span>
+          <span>برای علامت‌گذاری کلمات ناآشنا روی آن‌ها کلیک کن. {hasSync && hasAudio ? 'هنگام پخش، جمله فعال بولد و هایلایت می‌شود.' : ''}</span>
         </div>
 
-        {/* Text — sentences */}
-        <div className="bg-ocean-800 border border-ocean-600 rounded-2xl p-6" dir="ltr">
-          {sentences.map((sentence, si) => {
-            const isActive = si === activeSentIdx
-            const tokens   = sentence.split(/(\s+)/)
+        {/* ── Text ── */}
+        <div className="bg-ocean-800 border border-ocean-600 rounded-2xl p-6 mb-5" dir="ltr">
+          {segments.map((segment, si) => {
+            const isActive = hasSync && hasAudio && si===activeIdx
+            const tokens   = segment.split(/(\s+)/)
             return (
               <div
                 key={si}
-                ref={el => { sentenceRefs.current[si] = el }}
-                className="mb-4 last:mb-0 rounded-xl px-3 py-2 transition-all duration-300"
+                ref={el => { segRefs.current[si]=el }}
+                onClick={()=>hasSync && jumpToIndex(si)}
+                className="mb-3 last:mb-0 rounded-xl px-3 py-2.5 transition-all duration-300 leading-relaxed"
                 style={{
-                  background:  isActive ? 'rgba(245,158,11,0.12)' : 'transparent',
-                  borderRight: isActive ? '3px solid #f59e0b' : '3px solid transparent',
-                  opacity:     hasAudio && activeSentIdx >= 0 && !isActive ? 0.55 : 1,
+                  background:  isActive ? 'rgba(245,158,11,0.1)' : 'transparent',
+                  borderRight: isActive ? '3px solid #f59e0b'    : '3px solid transparent',
+                  cursor:      hasSync ? 'pointer' : 'default',
+                  opacity:     hasSync && hasAudio && activeIdx>=0 && !isActive ? 0.5 : 1,
                 }}>
                 {tokens.map((token, ti) => {
                   if (/^\s+$/.test(token)) return <span key={ti}>{token}</span>
                   const word   = cleanWord(token)
                   const status = word ? wordStatus[word] : undefined
+                  const isUnknown = status==='learning'
                   return (
-                    <span key={ti} onClick={() => word && toggleWord(token)}
-                      className="word-token select-none"
+                    <span
+                      key={ti}
+                      onClick={e => { e.stopPropagation(); word && toggleWord(token) }}
                       style={{
-                        background:  status === 'learning' ? 'rgba(245,158,11,0.22)' : undefined,
-                        color:       status === 'learning' ? '#f59e0b' : undefined,
-                        fontWeight:  isActive ? 500 : 400,
-                        fontSize:    isActive ? '1.08em' : '1em',
-                        cursor:      'pointer',
-                        padding:     '1px 3px',
+                        padding:      '1px 3px',
                         borderRadius: 4,
-                        transition:  'all 0.2s',
+                        cursor:       'pointer',
+                        fontSize:     isActive ? '1.07em' : '1em',
+                        fontWeight:   isActive ? 700 : isUnknown ? 500 : 400,
+                        background:   isUnknown ? 'rgba(245,158,11,0.22)' : isActive ? 'rgba(245,158,11,0.08)' : 'transparent',
+                        color:        isUnknown ? '#f59e0b' : isActive ? '#fef3c7' : '#e2e8f0',
+                        transition:   'all 0.2s',
+                        textDecoration: isUnknown ? 'underline dotted rgba(245,158,11,0.5)' : 'none',
+                        display:      'inline-block',
                       }}>
                       {token}
                     </span>
@@ -272,14 +294,15 @@ export default function LessonClient({ lesson, profile, userId, initialWordStatu
         </div>
 
         {/* Unknown words */}
-        {unknownWords.length > 0 && (
-          <div className="mt-5 bg-ocean-800 border border-ocean-600 rounded-xl p-4">
+        {unknownWords.length>0 && (
+          <div className="bg-ocean-800 border border-ocean-600 rounded-xl p-4">
             <p className="text-xs text-slate-400 mb-3 flex items-center gap-1.5">
-              <span>🟡</span> کلمات در حال یادگیری ({unknownWords.length} کلمه)
+              <span>🟡</span> کلمات در حال یادگیری <span className="text-amber-500 font-bold">({unknownWords.length})</span>
             </p>
             <div className="flex flex-wrap gap-2">
-              {unknownWords.map(w => (
-                <span key={w} onClick={() => toggleWord(w)} className="cursor-pointer px-3 py-1 rounded-full text-sm font-medium"
+              {unknownWords.map(w=>(
+                <span key={w} onClick={()=>toggleWord(w)}
+                  className="cursor-pointer px-3 py-1 rounded-full text-sm font-medium transition-all hover:scale-105"
                   style={{ background:'rgba(245,158,11,0.18)', color:'#f59e0b', border:'1px solid rgba(245,158,11,0.3)' }}>
                   {w}
                 </span>
@@ -289,101 +312,84 @@ export default function LessonClient({ lesson, profile, userId, initialWordStatu
         )}
       </div>
 
-      {/* ── Fixed bottom bar ── */}
-      <div className="fixed bottom-0 left-0 right-0 border-t border-ocean-600 bg-ocean-950/95 backdrop-blur">
+      {/* ── Bottom bar ── */}
+      <div className="fixed bottom-0 left-0 right-0 bg-ocean-950/98 backdrop-blur-md border-t border-ocean-700">
 
-        {/* Audio Player */}
-        {hasAudio && !audioError && (
-          <div className="max-w-3xl mx-auto px-4 pt-3 pb-1">
-            {/* Progress bar */}
-            <div className="flex items-center gap-3 mb-2">
-              <span className="text-xs text-slate-500 w-10 text-left shrink-0">{fmt(currentMs)}</span>
-              <div className="relative flex-1 h-1.5 group">
+        {hasAudio && !audioErr && (
+          <div className="max-w-3xl mx-auto px-4 pt-4 pb-2">
+            <div className="flex items-center gap-3 mb-3">
+              <span className="text-xs text-slate-500 w-10 text-left tabular-nums shrink-0">{fmt(currentMs)}</span>
+              <div className="relative flex-1 h-2 group cursor-pointer" onClick={e=>{
+                const rect = e.currentTarget.getBoundingClientRect()
+                const p    = (e.clientX-rect.left)/rect.width
+                const ms   = p*(duration||100)
+                if(audioRef.current){ audioRef.current.currentTime=ms/1000; setCurrentMs(ms) }
+              }}>
                 <div className="absolute inset-0 bg-ocean-700 rounded-full" />
-                <div className="absolute top-0 left-0 h-full bg-amber-500 rounded-full transition-all"
-                  style={{ width: `${pct}%` }} />
-                <input type="range" min={0} max={duration || 100} value={currentMs} onChange={seek}
+                <div className="absolute top-0 left-0 h-full bg-amber-500 rounded-full transition-all pointer-events-none" style={{width:`${pct}%`}} />
+                <input type="range" min={0} max={duration||100} value={currentMs} onChange={seek}
                   className="absolute inset-0 w-full opacity-0 cursor-pointer h-full" />
               </div>
-              <span className="text-xs text-slate-500 w-10 shrink-0">{fmt(duration)}</span>
+              <span className="text-xs text-slate-500 w-10 tabular-nums shrink-0">{fmt(duration)}</span>
             </div>
 
-            {/* Controls */}
-            <div className="flex items-center justify-between gap-3 mb-2">
-              {/* Speed */}
-              <div className="flex gap-1">
-                {[0.5, 0.75, 1, 1.25, 1.5].map(s => (
-                  <button key={s} onClick={() => changeSpeed(s)}
-                    className={`px-2 py-0.5 rounded text-xs transition-colors ${speed === s ? 'bg-amber-500 text-ocean-950 font-bold' : 'text-slate-400 hover:text-white'}`}>
+            <div className="flex items-center justify-between">
+              <div className="flex gap-1 items-center">
+                <span className="text-xs text-slate-600 ml-1">سرعت:</span>
+                {[0.5,0.75,1,1.25,1.5].map(s=>(
+                  <button key={s} onClick={()=>changeSpeed(s)}
+                    className={`px-2 py-1 rounded-lg text-xs transition-all ${speed===s?'bg-amber-500 text-ocean-950 font-bold':'text-slate-500 hover:text-white hover:bg-ocean-700'}`}>
                     {s}x
                   </button>
                 ))}
               </div>
 
-              {/* Main controls */}
-              <div className="flex items-center gap-3">
-                {/* Prev sentence */}
-                <button onClick={() => skipSentence(-1)} disabled={!wordTimestamps.length}
-                  className="w-8 h-8 flex items-center justify-center text-slate-400 hover:text-white disabled:opacity-30 transition-colors">
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
-                    <path d="M6 6h2v12H6zm3.5 6 8.5 6V6z"/>
-                  </svg>
+              <div className="flex items-center gap-4">
+                <button onClick={()=>skip(-1)} disabled={!hasSync||activeIdx<=0}
+                  className="w-9 h-9 flex items-center justify-center rounded-xl text-slate-400 hover:text-white hover:bg-ocean-700 disabled:opacity-25 transition-all" title="جمله قبلی">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M6 6h2v12H6zm3.5 6 8.5 6V6z"/></svg>
                 </button>
 
-                {/* Play/Pause */}
                 <button onClick={togglePlay}
-                  className="w-11 h-11 rounded-full bg-amber-500 hover:bg-amber-400 flex items-center justify-center text-ocean-950 transition-colors shadow-lg">
-                  {playing ? (
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
-                      <path d="M6 19h4V5H6zm8-14v14h4V5z"/>
-                    </svg>
-                  ) : (
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
-                      <path d="M8 5v14l11-7z"/>
-                    </svg>
-                  )}
+                  className="w-12 h-12 rounded-full bg-amber-500 hover:bg-amber-400 flex items-center justify-center text-ocean-950 transition-all shadow-lg hover:shadow-amber-500/30 hover:scale-105">
+                  {playing
+                    ? <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><path d="M6 19h4V5H6zm8-14v14h4V5z"/></svg>
+                    : <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" style={{marginLeft:2}}><path d="M8 5v14l11-7z"/></svg>}
                 </button>
 
-                {/* Next sentence */}
-                <button onClick={() => skipSentence(1)} disabled={!wordTimestamps.length}
-                  className="w-8 h-8 flex items-center justify-center text-slate-400 hover:text-white disabled:opacity-30 transition-colors">
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
-                    <path d="M6 18l8.5-6L6 6v12zm2.5-6 5.5 3.9V8.1L8.5 12zM16 6h2v12h-2z"/>
-                  </svg>
+                <button onClick={()=>skip(1)} disabled={!hasSync||activeIdx>=segments.length-1}
+                  className="w-9 h-9 flex items-center justify-center rounded-xl text-slate-400 hover:text-white hover:bg-ocean-700 disabled:opacity-25 transition-all" title="جمله بعدی">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M6 18l8.5-6L6 6v12zm2.5-6 5.5 3.9V8.1L8.5 12zM16 6h2v12h-2z"/></svg>
                 </button>
               </div>
 
-              {/* Unknown count */}
-              <div className="text-xs text-slate-500 w-20 text-left">
-                {unknownWords.length > 0 ? `🟡 ${unknownWords.length} کلمه` : ''}
+              <div className="text-xs text-slate-600 w-24 text-left">
+                {activeIdx>=0 && hasSync && <span className="text-amber-500/70">جمله {activeIdx+1}/{segments.length}</span>}
               </div>
             </div>
           </div>
         )}
 
-        {audioError && (
-          <div className="max-w-3xl mx-auto px-4 py-2 text-xs text-red-400 text-center">
-            ⚠️ خطا در بارگذاری فایل صوتی
-          </div>
+        {audioErr && (
+          <div className="max-w-3xl mx-auto px-4 py-2 text-center text-xs text-red-400">⚠️ خطا در بارگذاری فایل صوتی</div>
         )}
 
-        {/* Complete button */}
-        <div className="max-w-3xl mx-auto px-4 py-3 flex items-center justify-between gap-3 border-t border-ocean-800">
+        <div className="max-w-3xl mx-auto px-4 py-3 border-t border-ocean-800 flex items-center justify-between gap-3">
           {finished ? (
             <div className="flex items-center justify-between w-full">
               <span className="text-green-400 font-semibold flex items-center gap-2">✅ درس با موفقیت تکمیل شد!</span>
               {lesson.chapter?.book && (
                 <a href={`/book/${lesson.chapter.book.id}`}
                   className="px-4 py-2 bg-amber-500 hover:bg-amber-400 text-ocean-950 font-bold rounded-xl text-sm transition-colors">
-                  درس بعدی ›
+                  برگشت به کتاب ›
                 </a>
               )}
             </div>
           ) : (
             <>
-              <div className="text-xs text-slate-500">
-                {unknownWords.length > 0 ? `${unknownWords.length} کلمه ناآشنا علامت زدی` : 'کلمات ناآشنا رو علامت بزن'}
-              </div>
+              <p className="text-xs text-slate-500">
+                {unknownWords.length>0 ? `🟡 ${unknownWords.length} کلمه ناآشنا علامت زدی` : 'کلمات ناآشنا رو با کلیک علامت بزن'}
+              </p>
               <button onClick={markComplete} disabled={saving}
                 className="flex items-center gap-2 px-5 py-2.5 bg-green-600 hover:bg-green-500 text-white font-semibold rounded-xl text-sm transition-colors disabled:opacity-50 whitespace-nowrap">
                 {saving ? 'ذخیره...' : '✅ همه لغات را بلد بودم'}
