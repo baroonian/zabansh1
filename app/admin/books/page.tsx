@@ -60,7 +60,7 @@ function LessonModal({ lesson, chapterId, onClose, onSaved }: { lesson?:Lesson; 
     title_fa: lesson?.title_fa??'', title_en: lesson?.title_en??'',
     number: String(lesson?.number??1), text_en: lesson?.text_en??'',
     audio_url: lesson?.audio_url??'', cover_url: lesson?.cover_url??'',
-    difficulty: lesson?.difficulty??'beginner',
+    difficulty: lesson?.difficulty??'easy',
     estimated_duration_sec: String(lesson?.estimated_duration_sec??60),
     is_published: lesson?.is_published??false,
   })
@@ -87,7 +87,7 @@ function LessonModal({ lesson, chapterId, onClose, onSaved }: { lesson?:Lesson; 
       chapter_id: chapterId, title_fa: f.title_fa, title_en: f.title_en||null,
       number: parseInt(f.number)||1, text_en: f.text_en,
       audio_url: f.audio_url||null, cover_url: f.cover_url||null,
-      difficulty: f.difficulty as 'beginner'|'intermediate'|'advaned',
+      difficulty: f.difficulty as 'easy'|'medium'|'hard',
       estimated_duration_sec: parseInt(f.estimated_duration_sec)||null,
       is_published: f.is_published,
     }
@@ -115,8 +115,8 @@ function LessonModal({ lesson, chapterId, onClose, onSaved }: { lesson?:Lesson; 
       </div>
       <div className="grid grid-cols-3 gap-3">
         <Inp label="شماره" value={f.number} onChange={v=>setF(x=>({...x,number:v}))} type="number" />
-        <Sel label="سختی" value={f.difficulty} onChange={v=>setF(x=>({...x,difficulty:v as 'beginner'|'intermediate'|'advanced'}))}
-          opts={[{v:'beginner',l:'آسان'},{v:'intermediate',l:'متوسط'},{v:'advanced',l:'دشوار'}]} />
+        <Sel label="سختی" value={f.difficulty} onChange={v=>setF(x=>({...x,difficulty:v as 'easy'|'medium'|'hard'}))}
+          opts={[{v:'easy',l:'آسان'},{v:'medium',l:'متوسط'},{v:'hard',l:'دشوار'}]} />
         <Inp label="مدت (ثانیه)" value={f.estimated_duration_sec} onChange={v=>setF(x=>({...x,estimated_duration_sec:v}))} type="number" />
       </div>
 

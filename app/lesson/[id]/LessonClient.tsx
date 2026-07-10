@@ -19,9 +19,16 @@ interface Props {
 
 function cleanWord(raw:string) { return raw.toLowerCase().replace(/[^a-zA-Z']/g,'') }
 
-function splitSentences(text:string): string[] {
-  const parts = text.match(/[^.!?\n]+[.!?\n]*/g) ?? [text]
-  return parts.map(s=>s.trim()).filter(Boolean)
+// ── تقسیم متن به پاراگراف‌های واقعی (بر اساس خط خالی) ──────────
+function splitParagraphs(text:string): string[] {
+  return text.split(/\n\s*\n+/).map(p=>p.trim()).filter(Boolean)
+}
+
+// ── تقسیم یک پاراگراف به جمله‌ها (فاصله‌ی انتهای هر جمله حفظ میشه) ──
+function splitSentencesInParagraph(paragraph:string): string[] {
+  const flat = paragraph.replace(/\n+/g,' ')
+  const parts = flat.match(/[^.!?]+[.!?]*\s*/g) ?? [flat]
+  return parts.filter(s=>s.trim().length>0)
 }
 
 function getActiveIdxByWords(sentences:string[], timestamps:WordTimestamp[], currentMs:number): number {
@@ -63,37 +70,28 @@ function fmt(ms:number) {
 }
 
 // ================================================================
-// SentenceBlock — کامپوننت جداگانه و memo شده
-// فقط وقتی isActive یا wordStatus مربوط به کلمات همین جمله تغییر کنه
-// دوباره render می‌شه، نه در هر تیک صدا (که ۴+ بار در ثانیه اتفاق می‌افته)
+// SentenceInline — به‌جای جعبه‌ی مجزا، یک <span> که داخل پاراگراف
+// به‌صورت طبیعی جریان پیدا می‌کنه. جمله فعال فقط بولد میشه، بدون
+// پس‌زمینه یا کادر. memo شده تا فقط جمله‌ای که active آن عوض شده
+// دوباره render بشه.
 // ================================================================
-interface SentenceBlockProps {
+interface SentenceInlineProps {
   segment: string
   isActive: boolean
-  dim: boolean
   wordStatus: Record<string,'learning'|'known'>
   clickable: boolean
-  onSegmentClick: () => void
-  onWordClick: (raw: string) => void
-  setRef: (el: HTMLDivElement | null) => void
+  onPress: () => void
+  onWordPress: (raw: string) => void
+  setRef: (el: HTMLSpanElement | null) => void
 }
 
-const SentenceBlock = memo(function SentenceBlock({
-  segment, isActive, dim, wordStatus, clickable, onSegmentClick, onWordClick, setRef,
-}: SentenceBlockProps) {
+const SentenceInline = memo(function SentenceInline({
+  segment, isActive, wordStatus, clickable, onPress, onWordPress, setRef,
+}: SentenceInlineProps) {
   const tokens = useMemo(() => segment.split(/(\s+)/), [segment])
 
   return (
-    <div
-      ref={setRef}
-      onClick={onSegmentClick}
-      className="mb-3 last:mb-0 rounded-xl px-3 py-2.5 transition-all duration-300 leading-relaxed"
-      style={{
-        background:  isActive ? 'rgba(245,158,11,0.1)' : 'transparent',
-        borderRight: isActive ? '3px solid #f59e0b'    : '3px solid transparent',
-        cursor:      clickable ? 'pointer' : 'default',
-        opacity:     dim && !isActive ? 0.5 : 1,
-      }}>
+    <span ref={setRef} onClick={onPress} style={{ cursor: clickable ? 'pointer' : 'default' }}>
       {tokens.map((token, ti) => {
         if (/^\s+$/.test(token)) return <span key={ti}>{token}</span>
         const word   = cleanWord(token)
@@ -102,35 +100,29 @@ const SentenceBlock = memo(function SentenceBlock({
         return (
           <span
             key={ti}
-            onClick={e => { e.stopPropagation(); word && onWordClick(token) }}
+            onClick={e => { e.stopPropagation(); word && onWordPress(token) }}
             style={{
-              padding:      '1px 3px',
+              display:      'inline-block',
+              padding:      '1px 2px',
               borderRadius: 4,
               cursor:       'pointer',
-              fontSize:     isActive ? '1.07em' : '1em',
               fontWeight:   isActive ? 700 : isUnknown ? 500 : 400,
-              background:   isUnknown ? 'rgba(245,158,11,0.22)' : isActive ? 'rgba(245,158,11,0.08)' : 'transparent',
-              color:        isUnknown ? '#f59e0b' : isActive ? '#fef3c7' : '#e2e8f0',
-              transition:   'all 0.2s',
+              background:   isUnknown ? 'rgba(245,158,11,0.22)' : 'transparent',
+              color:        isUnknown ? '#f59e0b' : '#e2e8f0',
               textDecoration: isUnknown ? 'underline dotted rgba(245,158,11,0.5)' : 'none',
-              display:      'inline-block',
             }}>
             {token}
           </span>
         )
       })}
-    </div>
+    </span>
   )
-}, (prev, next) => {
-  // مقایسه دستی: فقط اگه واقعاً چیزی که این جمله رو تحت‌تأثیر قرار میده عوض شده re-render کن
-  return (
-    prev.segment === next.segment &&
-    prev.isActive === next.isActive &&
-    prev.dim === next.dim &&
-    prev.clickable === next.clickable &&
-    prev.wordStatus === next.wordStatus // فقط اگه reference عوض بشه (یعنی کلمه‌ای toggle شده)
-  )
-})
+}, (prev, next) =>
+  prev.segment === next.segment &&
+  prev.isActive === next.isActive &&
+  prev.clickable === next.clickable &&
+  prev.wordStatus === next.wordStatus
+)
 
 export default function LessonClient({
   lesson, profile, userId, initialWordStatus, initialProgress, wordTimestamps, subtitleCues
@@ -142,7 +134,7 @@ export default function LessonClient({
   const [saving,     setSaving]     = useState(false)
 
   const audioRef  = useRef<HTMLAudioElement>(null)
-  const segRefs   = useRef<(HTMLDivElement|null)[]>([])
+  const segRefs   = useRef<(HTMLSpanElement|null)[]>([])
   const [playing,   setPlaying]   = useState(false)
   const [currentMs, setCurrentMs] = useState(0)
   const [duration,  setDuration]  = useState(0)
@@ -151,24 +143,45 @@ export default function LessonClient({
   const [audioErr,  setAudioErr]  = useState(false)
   const hasAudio = !!lesson.audio_url
 
-  // ── منبع sync: اولویت با SRT، وگرنه AI word_timestamps ──────
   const srtMode = subtitleCues.length > 0
   const aiMode  = !srtMode && wordTimestamps.length > 0
   const hasSync = srtMode || aiMode
 
-  // useMemo: این آرایه فقط وقتی متن/زیرنویس عوض بشه دوباره ساخته میشه، نه هر تیک صدا
+  // ── segments: آرایه‌ی مسطح جمله‌ها/cue ها — همون چیزی که برای
+  // محاسبات sync (شمارش کلمه، پیدا کردن جمله فعال) استفاده میشه ──
+  const paragraphTexts = useMemo(() => splitParagraphs(lesson.text_en), [lesson.text_en])
+  const paragraphSentences = useMemo(
+    () => paragraphTexts.map(p => splitSentencesInParagraph(p)),
+    [paragraphTexts]
+  )
   const segments: string[] = useMemo(
-    () => srtMode ? subtitleCues.map(c => c.text) : splitSentences(lesson.text_en),
-    [srtMode, subtitleCues, lesson.text_en]
+    () => srtMode ? subtitleCues.map(c => c.text) : paragraphSentences.flat(),
+    [srtMode, subtitleCues, paragraphSentences]
   )
 
-  // ref برای دسترسی به آخرین wordStatus بدون نیاز به وابسته کردن toggleWord بهش
-  // (باعث میشه toggleWord یک reference ثابت داشته باشه و SentenceBlock ها بی‌خودی re-render نشن)
+  // ── گروه‌بندی segments به پاراگراف برای نمایش ──────────────────
+  // حالت SRT: پاراگراف واقعی نداریم، پس بر اساس فاصله زمانی بزرگ بین
+  // دو cue (بیش از ۲.۵ ثانیه سکوت) یک پاراگراف جدید در نظر می‌گیریم
+  const paragraphs = useMemo(() => {
+    if (srtMode) {
+      const groups: number[][] = []
+      let current: number[] = []
+      subtitleCues.forEach((cue, i) => {
+        if (i > 0 && cue.start_ms - subtitleCues[i-1].end_ms > 2500) {
+          groups.push(current); current = []
+        }
+        current.push(i)
+      })
+      if (current.length) groups.push(current)
+      return groups
+    }
+    let idx = 0
+    return paragraphSentences.map(sentArr => sentArr.map(() => idx++))
+  }, [srtMode, subtitleCues, paragraphSentences])
+
   const wordStatusRef = useRef(wordStatus)
   useEffect(() => { wordStatusRef.current = wordStatus }, [wordStatus])
 
-  // throttle برای بروزرسانی currentMs — به‌جای هر رویداد مرورگر (که میتونه ۱۵-۶۰ بار در ثانیه باشه)
-  // حداکثر هر ۱۵۰ میلی‌ثانیه state رو آپدیت می‌کنیم؛ برای sync جمله کاملاً کافیه
   const lastTickRef = useRef(0)
 
   useEffect(()=>{
@@ -251,7 +264,6 @@ export default function LessonClient({
     jumpToIndex(next)
   }, [activeIdx, segments.length, jumpToIndex])
 
-  // ── toggleWord با reference ثابت (بدون وابستگی به wordStatus) ──
   const toggleWord = useCallback(async (raw:string) => {
     const word = cleanWord(raw)
     if (!word || word.length<2) return
@@ -283,14 +295,13 @@ export default function LessonClient({
     setSaving(false); setFinished(true)
   }, [sb, userId, lesson.id, currentMs, duration])
 
-  // useMemo برای جلوگیری از ساخت آرایه جدید در هر render (استفاده در چند جا)
   const unknownWords = useMemo(
     () => Object.entries(wordStatus).filter(([,s])=>s==='learning').map(([w])=>w),
     [wordStatus]
   )
   const pct = duration>0 ? Math.round((currentMs/duration)*100) : 0
 
-  const setSegRef = useCallback((idx: number) => (el: HTMLDivElement | null) => {
+  const setSegRef = useCallback((idx: number) => (el: HTMLSpanElement | null) => {
     segRefs.current[idx] = el
   }, [])
 
@@ -326,8 +337,8 @@ export default function LessonClient({
             {lesson.title_en && <p className="text-sm text-slate-400 mt-1">{lesson.title_en}</p>}
             <div className="flex gap-3 mt-2 text-xs text-slate-500 flex-wrap">
               {lesson.difficulty && (
-                <span className={`px-2 py-0.5 rounded-full ${lesson.difficulty==='easy'?'bg-green-900/40 text-green-400':lesson.difficulty==='medium'?'bg-amber-900/40 text-amber-400':'bg-red-900/40 text-red-400'}`}>
-                  {lesson.difficulty==='easy'?'آسان':lesson.difficulty==='medium'?'متوسط':'دشوار'}
+                <span className={`px-2 py-0.5 rounded-full ${lesson.difficulty==='beginner'?'bg-green-900/40 text-green-400':lesson.difficulty==='intermediate'?'bg-amber-900/40 text-amber-400':'bg-red-900/40 text-red-400'}`}>
+                  {lesson.difficulty==='beginner'?'ساده':lesson.difficulty==='intermediate'?'متوسط':'پیشرفته'}
                 </span>
               )}
               {lesson.estimated_duration_sec && <span>⏱ {Math.ceil(lesson.estimated_duration_sec/60)} دقیقه</span>}
@@ -341,23 +352,26 @@ export default function LessonClient({
         {/* Hint */}
         <div className="flex items-start gap-2 mb-5 px-4 py-3 bg-ocean-800/60 rounded-xl border border-ocean-700 text-xs text-slate-400">
           <span className="mt-0.5">💡</span>
-          <span>برای علامت‌گذاری کلمات ناآشنا روی آن‌ها کلیک کن. {hasSync && hasAudio ? 'هنگام پخش، جمله فعال بولد و هایلایت می‌شود.' : ''}</span>
+          <span>برای علامت‌گذاری کلمات ناآشنا روی آن‌ها کلیک کن. {hasSync && hasAudio ? 'هنگام پخش، جمله فعال بولد می‌شود.' : ''}</span>
         </div>
 
-        {/* ── Text: هر جمله یک SentenceBlock مجزا و memo شده ── */}
+        {/* ── متن با پاراگراف‌های واقعی — هر پاراگراف یک <p> با جریان طبیعی ── */}
         <div className="bg-ocean-800 border border-ocean-600 rounded-2xl p-6 mb-5" dir="ltr">
-          {segments.map((segment, si) => (
-            <SentenceBlock
-              key={si}
-              segment={segment}
-              isActive={hasSync && hasAudio && si===activeIdx}
-              dim={hasSync && hasAudio && activeIdx>=0}
-              wordStatus={wordStatus}
-              clickable={hasSync}
-              onSegmentClick={() => hasSync && jumpToIndex(si)}
-              onWordClick={toggleWord}
-              setRef={setSegRef(si)}
-            />
+          {paragraphs.map((segIndices, pi) => (
+            <p key={pi} style={{ marginBottom: 18, lineHeight: 1.9, fontSize: 16 }}>
+              {segIndices.map(si => (
+                <SentenceInline
+                  key={si}
+                  segment={segments[si]}
+                  isActive={hasSync && hasAudio && si===activeIdx}
+                  wordStatus={wordStatus}
+                  clickable={hasSync}
+                  onPress={() => hasSync && jumpToIndex(si)}
+                  onWordPress={toggleWord}
+                  setRef={setSegRef(si)}
+                />
+              ))}
+            </p>
           ))}
         </div>
 
