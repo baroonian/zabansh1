@@ -116,7 +116,7 @@ function LessonModal({ lesson, chapterId, onClose, onSaved }: { lesson?:Lesson; 
       <div className="grid grid-cols-3 gap-3">
         <Inp label="شماره" value={f.number} onChange={v=>setF(x=>({...x,number:v}))} type="number" />
         <Sel label="سختی" value={f.difficulty} onChange={v=>setF(x=>({...x,difficulty:v as 'beginner'|'intermediate'|'advanced'}))}
-          opts={[{v:'easy',l:'آسان'},{v:'medium',l:'متوسط'},{v:'hard',l:'دشوار'}]} />
+          opts={[{v:'beginner',l:'آسان'},{v:'intermediate',l:'متوسط'},{v:'advanced',l:'دشوار'}]} />
         <Inp label="مدت (ثانیه)" value={f.estimated_duration_sec} onChange={v=>setF(x=>({...x,estimated_duration_sec:v}))} type="number" />
       </div>
 
