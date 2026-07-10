@@ -60,7 +60,7 @@ function LessonModal({ lesson, chapterId, onClose, onSaved }: { lesson?:Lesson; 
     title_fa: lesson?.title_fa??'', title_en: lesson?.title_en??'',
     number: String(lesson?.number??1), text_en: lesson?.text_en??'',
     audio_url: lesson?.audio_url??'', cover_url: lesson?.cover_url??'',
-    difficulty: lesson?.difficulty??'easy',
+    difficulty: lesson?.difficulty??'beginner',
     estimated_duration_sec: String(lesson?.estimated_duration_sec??60),
     is_published: lesson?.is_published??false,
   })
