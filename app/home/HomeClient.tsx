@@ -50,7 +50,7 @@ export default function HomeClient({ profile, books, categories, stats }: Props)
 
         {/* Speedometer */}
         <section className="text-center py-10">
-          <p className="text-xs text-slate-500 tracking-widest uppercase mb-1">پیشرفت کلی یادگیری</p>
+          <p className="text-lg text-slate-500 tracking-widest uppercase mb-1">پیشرفت کلی یادگیری</p>
           <div className="flex justify-center">
             <Speedometer pct={stats.pct} size={300} label={pctLabel} />
           </div>
