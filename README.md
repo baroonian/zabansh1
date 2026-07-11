@@ -1,11 +1,12 @@
 # 🎧 English Shadowing Web App
 
-Next.js 14 + Supabase + Tailwind — آماده deploy روی Vercel
+Next.js + Supabase + Tailwind — deploy روی Vercel
 
 ## ساختار پروژه
 
 ```
 app/
+├── admin/        ← صفحه مدیریت
 ├── auth/login/        ← صفحه ورود
 ├── auth/register/     ← صفحه ثبت‌نام
 ├── auth/callback/     ← Supabase OAuth callback
@@ -40,13 +41,13 @@ npm run dev
 
 ```bash
 # ۱. clone کن
-git clone https://github.com/baroonian/english-shadowing
-cd english-shadowing
+git clone https://github.com/baroonian/zabansh1
+cd zabansh1
 
 # ۲. فایل‌های این پروژه رو کپی کن
 # ۳. push کن
 git add .
-git commit -m "feat: Next.js web app"
+git commit -m "...."
 git push origin main
 ```
 
@@ -91,5 +92,5 @@ vercel --prod
 - ✅ ذخیره کلمات ناآشنا در Supabase
 - ✅ تکمیل درس و ذخیره progress
 - ✅ پروفایل با آمار و نمودار فعالیت
-- ✅ SSR کامل با Next.js 14 App Router
-- ✅ Middleware برای حفاظت routes
+- ✅ SSR کامل با Next.js 15 App Router
+- ✅ Proxy برای حفاظت routes
