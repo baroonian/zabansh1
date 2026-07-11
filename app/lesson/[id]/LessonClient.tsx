@@ -5,49 +5,8 @@ import type { Lesson, UserProfile, Progress } from '@/types'
 import { WordStatus } from '@/types/words'
 import { useWordStatus } from '@/hooks/useWordStatus'
 
-const {
 
-    status: wordStatus,
 
-    toggle,
-
-    markKnown,
-
-    unknownWords
-
-} = useWordStatus(
-
-    userId,
-
-    lesson.id,
-
-    initialWordStatus
-
-)
-
-export interface LessonToken{
-
-  readonly index:number
-
-  readonly raw:string
-
-  readonly normalized:string
-
-  readonly isWord:boolean
-
-  wordId:number
-
-  status:WordStatus
-
-  translation:string|null
-
-  bookmarked:boolean
-
-  timestampStart:number|null
-
-  timestampEnd:number|null
-
-}
 
 interface WordTimestamp { word:string; word_index:number; start_ms:number; end_ms:number }
 interface SubtitleCue { cue_index:number; start_ms:number; end_ms:number; text:string }
@@ -172,7 +131,16 @@ const SentenceInline = memo(function SentenceInline({
 export default function LessonClient({
   lesson, profile, userId, initialWordStatus, initialProgress, wordTimestamps, subtitleCues
 }: Props) {
-  
+  const {
+  status: wordStatus,
+  toggle,
+  markKnown,
+  unknownWords,
+} = useWordStatus(
+  userId,
+  lesson.id,
+  initialWordStatus
+)
   const [finished,   setFinished]   = useState(initialProgress?.completed??false)
   const [saving,     setSaving]     = useState(false)
 
