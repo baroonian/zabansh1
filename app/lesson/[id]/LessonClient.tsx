@@ -4,7 +4,7 @@ import Navbar from '@/components/layout/Navbar'
 import type { Lesson, UserProfile, Progress } from '@/types'
 import { WordStatus } from '@/types/words'
 import { useWordStatus } from '@/hooks/useWordStatus'
-
+import { createClient } from '@/lib/supabase/client'
 
 
 
