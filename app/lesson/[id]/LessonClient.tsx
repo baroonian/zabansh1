@@ -275,17 +275,12 @@ export default function LessonClient({
     jumpToIndex(next)
   }, [activeIdx, segments.length, jumpToIndex])
 
-const toggleWord = useCallback(
-
-    (raw:string)=>{
-
-        toggle(raw)
-
+  const toggleWord = useCallback(
+    (wordId: number, raw: string) => {
+      toggle(wordId, raw)
     },
-
     [toggle]
-
-)
+  )
   const markComplete = useCallback(async () => {
     setSaving(true)
     await sb.from('progress').upsert({
