@@ -1,10 +1,12 @@
 'use client'
 import { memo } from 'react'
 
+import type { WordStatus } from '@/types/word'
+
 interface Props {
-  text: string
-  wordStatus: Record<string, 'learning' | 'known'>
-  onWordClick: (word: string) => void
+
+    wordStatus: Record<string, WordStatus>
+
 }
 
 function clean(raw: string) {
