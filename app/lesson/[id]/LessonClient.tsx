@@ -1,13 +1,11 @@
 'use client'
 import { useState, useCallback, useEffect, useRef, useMemo, memo } from 'react'
 import Navbar from '@/components/layout/Navbar'
-import type { Lesson, UserProfile, Progress } from '@/types'
-import { WordStatus } from '@/types/words'
-import { useWordStatus } from '@/hooks/useWordStatus'
 import { createClient } from '@/lib/supabase/client'
+import type { Lesson, UserProfile, Progress } from '@/types'
+import { WordStatus } from '@/types/word'
+import { useWordStatus } from '@/hooks/useWordStatus'
 
-
-const sb = createClient()
 interface WordTimestamp { word:string; word_index:number; start_ms:number; end_ms:number }
 interface SubtitleCue { cue_index:number; start_ms:number; end_ms:number; text:string }
 
@@ -82,7 +80,7 @@ function fmt(ms:number) {
 interface SentenceInlineProps {
   segment: string
   isActive: boolean
-  wordStatus: Record<string,'learning'|'known'>
+  wordStatus: Record<string, WordStatus>
   clickable: boolean
   onPress: () => void
   onWordPress: (raw: string) => void
@@ -131,16 +129,18 @@ const SentenceInline = memo(function SentenceInline({
 export default function LessonClient({
   lesson, profile, userId, initialWordStatus, initialProgress, wordTimestamps, subtitleCues
 }: Props) {
+
+  // کلاینت Supabase (singleton) — قبلاً تعریف نشده بود و باعث خطای build می‌شد
+  const sb = useMemo(() => createClient(), [])
+
+  // هوک وضعیت کلمات — قبلاً به اشتباه بیرون از کامپوننت صدا زده می‌شد
   const {
-  status: wordStatus,
-  toggle,
-  markKnown,
-  unknownWords,
-} = useWordStatus(
-  userId,
-  lesson.id,
-  initialWordStatus
-)
+    status: wordStatus,
+    toggle,
+    markKnown,
+    unknownWords,
+  } = useWordStatus(userId, lesson.id, initialWordStatus)
+
   const [finished,   setFinished]   = useState(initialProgress?.completed??false)
   const [saving,     setSaving]     = useState(false)
 
@@ -276,11 +276,10 @@ export default function LessonClient({
   }, [activeIdx, segments.length, jumpToIndex])
 
   const toggleWord = useCallback(
-    (wordId: number, raw: string) => {
-      toggle(wordId, raw)
-    },
+    (raw:string) => { toggle(raw) },
     [toggle]
   )
+
   const markComplete = useCallback(async () => {
     setSaving(true)
     await sb.from('progress').upsert({
