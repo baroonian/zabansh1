@@ -3,6 +3,8 @@ import { useState, useCallback, useEffect, useRef, useMemo, memo } from 'react'
 import Navbar from '@/components/layout/Navbar'
 import { createClient } from '@/lib/supabase/client'
 import type { Lesson, UserProfile, Progress } from '@/types'
+import { WordStatus } from '@/types/words'
+
 
 interface WordTimestamp { word:string; word_index:number; start_ms:number; end_ms:number }
 interface SubtitleCue { cue_index:number; start_ms:number; end_ms:number; text:string }
@@ -11,7 +13,7 @@ interface Props {
   lesson: Lesson & { chapter?:{ number:number; title_fa:string; book?:{ id:string; title_fa:string } } }
   profile: UserProfile|null
   userId: string
-  initialWordStatus: Record<string,'learning'|'known'>
+  initialWordStatus: Record<string, WordStatus>
   initialProgress: Progress|null
   wordTimestamps: WordTimestamp[]
   subtitleCues: SubtitleCue[]
@@ -129,7 +131,7 @@ export default function LessonClient({
 }: Props) {
   const sb = useMemo(() => createClient(), [])
 
-  const [wordStatus, setWordStatus] = useState<Record<string,'learning'|'known'>>(initialWordStatus)
+  const [wordStatus, setWordStatus] = useState<Record<string, WordStatus>>(initialWordStatus)
   const [finished,   setFinished]   = useState(initialProgress?.completed??false)
   const [saving,     setSaving]     = useState(false)
 
