@@ -1,32 +1,45 @@
 import { normalizeWord } from "./normalizeWord";
+import type { LessonToken } from "@/types/lessonToken";
 
-export interface LessonToken {
-  index: number;
-  raw: string;
-  normalized: string;
-  isWord: boolean;
-}
+const WORD_REGEX =
+  /[A-Za-z]+(?:['’-][A-Za-z]+)*|[0-9]+|[^\s]/g;
 
 export function tokenizeLesson(text: string): LessonToken[] {
-  const tokens = text.split(/(\s+|[.,!?;:"()])/g);
 
-  let index = 0;
+  const matches = [...text.matchAll(WORD_REGEX)];
 
-  return tokens
-    .filter(t => t.length > 0)
-    .map(token => {
+  return matches.map((m, index) => {
 
-      const normalized = normalizeWord(token);
+    const raw = m[0];
 
-      const isWord = normalized.length > 1;
+    const normalized = normalizeWord(raw);
 
-      return {
-        index: index++,
-        raw: token,
-        normalized,
-        isWord,
-      };
+    return {
 
-    });
+      index,
+
+      raw,
+
+      normalized,
+
+      isWord: normalized.length > 1,
+
+      wordId: null,
+
+      translation: null,
+
+      bookmarked: false,
+
+      timestamp: {
+
+        start: null,
+
+        end: null
+
+      }
+
+    };
+
+  });
 
 }

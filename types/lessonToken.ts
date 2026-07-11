@@ -1,25 +1,36 @@
 import type { WordStatus } from "./word";
 
 export interface LessonToken {
+  /** Position inside lesson */
+  readonly index: number;
 
-  index: number;
+  /** Original text */
+  readonly raw: string;
 
-  raw: string;
+  /** Normalized word */
+  readonly normalized: string;
 
-  normalized: string;
+  /** Word or punctuation */
+  readonly isWord: boolean;
 
-  isWord: boolean;
+  /** FK -> words.id */
+  wordId: number | null;
 
-  wordId?: number;
+  /** Translation (loaded later) */
+  translation: string | null;
 
-  status?: WordStatus;
+  /** Bookmark state */
+  bookmarked: boolean;
 
-  translation?: string;
-
-  bookmarked?: boolean;
-
-  timestampStart?: number;
-
-  timestampEnd?: number;
-
+  /** Audio timestamp */
+  timestamp: {
+    start: number | null;
+    end: number | null;
+  };
 }
+
+/**
+ * Dynamic state
+ * key = wordId
+ */
+export type WordStateMap = Record<number, WordStatus>;

@@ -4,7 +4,27 @@ import Navbar from '@/components/layout/Navbar'
 import { createClient } from '@/lib/supabase/client'
 import type { Lesson, UserProfile, Progress } from '@/types'
 import { WordStatus } from '@/types/words'
+import { useWordStatus } from '@/hooks/useWordStatus'
 
+const {
+
+    status: wordStatus,
+
+    toggle,
+
+    markKnown,
+
+    unknownWords
+
+} = useWordStatus(
+
+    userId,
+
+    lesson.id,
+
+    initialWordStatus
+
+)
 
 interface WordTimestamp { word:string; word_index:number; start_ms:number; end_ms:number }
 interface SubtitleCue { cue_index:number; start_ms:number; end_ms:number; text:string }
@@ -129,9 +149,7 @@ const SentenceInline = memo(function SentenceInline({
 export default function LessonClient({
   lesson, profile, userId, initialWordStatus, initialProgress, wordTimestamps, subtitleCues
 }: Props) {
-  const sb = useMemo(() => createClient(), [])
-
-  const [wordStatus, setWordStatus] = useState<Record<string, WordStatus>>(initialWordStatus)
+  
   const [finished,   setFinished]   = useState(initialProgress?.completed??false)
   const [saving,     setSaving]     = useState(false)
 
@@ -266,26 +284,17 @@ export default function LessonClient({
     jumpToIndex(next)
   }, [activeIdx, segments.length, jumpToIndex])
 
-  const toggleWord = useCallback(async (raw:string) => {
-    const word = cleanWord(raw)
-    if (!word || word.length<2) return
-    const cur  = wordStatusRef.current[word]
-    const next = cur==='learning' ? undefined : 'learning'
-    setWordStatus(prev => {
-      const n = {...prev}
-      if (!next) delete n[word]; else n[word]='learning'
-      return n
-    })
-    if (next==='learning') {
-      await sb.from('user_word_status').upsert(
-        { user_id:userId, word, status:'learning', lesson_id:lesson.id },
-        { onConflict:'user_id,word' }
-      )
-    } else {
-      await sb.from('user_word_status').delete().eq('user_id',userId).eq('word',word)
-    }
-  },[userId, lesson.id, sb])
+const toggleWord = useCallback(
 
+    (raw:string)=>{
+
+        toggle(raw)
+
+    },
+
+    [toggle]
+
+)
   const markComplete = useCallback(async () => {
     setSaving(true)
     await sb.from('progress').upsert({
@@ -297,10 +306,6 @@ export default function LessonClient({
     setSaving(false); setFinished(true)
   }, [sb, userId, lesson.id, currentMs, duration])
 
-  const unknownWords = useMemo(
-    () => Object.entries(wordStatus).filter(([,s])=>s==='learning').map(([w])=>w),
-    [wordStatus]
-  )
   const pct = duration>0 ? Math.round((currentMs/duration)*100) : 0
 
   const setSegRef = useCallback((idx: number) => (el: HTMLSpanElement | null) => {
