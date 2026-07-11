@@ -1,5 +1,5 @@
 import { createClient } from "@/lib/supabase/client";
-import { WORD_STATUS, type WordStatus } from "@/types/word";
+import { WORD_STATUS, type WordStatus } from "@/types/words";
 
 const sb = createClient();
 

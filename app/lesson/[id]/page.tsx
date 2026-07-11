@@ -1,7 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect, notFound } from 'next/navigation'
 import LessonClient from './LessonClient'
-import type { WordStatus } from '@/types/word'
+import type { WordStatus } from '@/types/words'
 
 export default async function LessonPage({
   params,

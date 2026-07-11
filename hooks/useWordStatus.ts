@@ -1,7 +1,7 @@
 'use client'
 import { useState, useCallback } from 'react'
 import { WordRepository } from "@/lib/repositories/WordRepository";
-import { WORD_STATUS, type WordStatus } from '@/types/word'
+import { WORD_STATUS, type WordStatus } from '@/types/words'
 import { normalizeWord } from '@/lib/normalizeWord'
 
 export type WordStatusMap = Record<string, WordStatus>;

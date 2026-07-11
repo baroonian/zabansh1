@@ -1,4 +1,4 @@
-import type { WordStatus } from "./word";
+import type { WordStatus } from "./words";
 
 export interface LessonToken {
   /** Position inside lesson */

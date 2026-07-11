@@ -1,7 +1,6 @@
 'use client'
 import { useState, useCallback, useEffect, useRef, useMemo, memo } from 'react'
 import Navbar from '@/components/layout/Navbar'
-import { createClient } from '@/lib/supabase/client'
 import type { Lesson, UserProfile, Progress } from '@/types'
 import { WordStatus } from '@/types/words'
 import { useWordStatus } from '@/hooks/useWordStatus'
@@ -25,6 +24,30 @@ const {
     initialWordStatus
 
 )
+
+export interface LessonToken{
+
+  readonly index:number
+
+  readonly raw:string
+
+  readonly normalized:string
+
+  readonly isWord:boolean
+
+  wordId:number
+
+  status:WordStatus
+
+  translation:string|null
+
+  bookmarked:boolean
+
+  timestampStart:number|null
+
+  timestampEnd:number|null
+
+}
 
 interface WordTimestamp { word:string; word_index:number; start_ms:number; end_ms:number }
 interface SubtitleCue { cue_index:number; start_ms:number; end_ms:number; text:string }
