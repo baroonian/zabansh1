@@ -50,7 +50,7 @@ export interface Lesson {
   text_parsed?: Record<string, unknown>
   audio_url?: string
   cover_url?: string
-  difficulty?: 'easy' | 'medium' | 'hard'
+  difficulty?: 'beginner' | 'intermediate' | 'advanced'
   estimated_duration_sec?: number
   is_published: boolean
   transcript_id?: string
