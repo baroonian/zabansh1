@@ -7,7 +7,7 @@ import { useWordStatus } from '@/hooks/useWordStatus'
 import { createClient } from '@/lib/supabase/client'
 
 
-
+const sb = createClient()
 interface WordTimestamp { word:string; word_index:number; start_ms:number; end_ms:number }
 interface SubtitleCue { cue_index:number; start_ms:number; end_ms:number; text:string }
 
