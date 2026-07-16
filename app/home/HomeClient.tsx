@@ -97,6 +97,7 @@ export default function HomeClient({ profile, books, categories, stats }: Props)
           </div>
         </section>
 
+<<<<<<< Updated upstream
         {/* ── Level Filter ── */}
         <div className="flex gap-2 flex-wrap mb-6">
           {LEVEL_FILTERS.map(f => (
@@ -106,9 +107,22 @@ export default function HomeClient({ profile, books, categories, stats }: Props)
                   ? 'border-amber-500 bg-amber-500/10 text-amber-400'
                   : 'border-ocean-600 bg-card text-slate-400 hover:border-ocean-500 hover:text-slate-300'
               }`}>
+=======
+        {/* Level filter */}
+        <div className="flex items-center justify-between gap-2 flex-wrap mb-6">
+        <div className="flex gap-2 flex-wrap">
+          {LEVEL_FILTERS.map(f=>(
+            <button key={f.key} onClick={()=>setActiveLevel(f.key)}
+              className={`flex items-center gap-1.5 px-4 py-1.5 rounded-full text-sm border transition-all ${activeLevel===f.key?'border-amber-500 bg-amber-500/10 text-amber-400':'border-ocean-600 bg-ocean-800 text-slate-400 hover:border-ocean-500'}`}>
+>>>>>>> Stashed changes
               {f.icon} {f.label}
             </button>
           ))}
+        </div>
+          <Link href="/my-books"
+            className="flex items-center gap-1.5 px-4 py-1.5 rounded-full text-sm border border-amber-500/40 bg-amber-500/10 text-amber-400 hover:bg-amber-500/20 transition-all shrink-0">
+            📖 کتاب‌های من
+          </Link>
         </div>
 
         {/* ── Books Grid ── */}
@@ -146,6 +160,11 @@ function BookCard({ book }: { book: Book }) {
           style={{ background: `${color}20`, color }}>
           {book.category?.name_fa ?? book.level}
         </span>
+        {book.owner_id && (
+          <span className="absolute top-2 left-2 text-xs px-2 py-0.5 rounded-full font-medium bg-ocean-950/70 text-amber-300 border border-amber-500/30">
+            👤 کاربر
+          </span>
+        )}
       </div>
       {/* Info */}
       <div className="p-3">

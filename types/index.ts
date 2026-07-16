@@ -25,6 +25,9 @@ export interface Book {
   created_at: string
   updated_at: string
   category?: Category
+  // کتاب‌هایی که توسط خود کاربران اضافه می‌شوند (نه ادمین)
+  owner_id?: string | null
+  visibility?: 'public' | 'private'
 }
 
 export interface Chapter {
