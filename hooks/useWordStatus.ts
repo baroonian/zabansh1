@@ -1,55 +1,98 @@
 'use client'
-import { useState, useCallback, useRef, useEffect, useMemo } from 'react'
-import { WordRepository } from '@/lib/repositories/WordRepository'
-import { WORD_STATUS, type WordStatus } from '@/types/word'
-import type { WordStateMap } from '@/types/lessonToken'
+import { useState, useCallback } from 'react'
+import { WordRepository } from "@/lib/repositories/WordRepository";
+import { WORD_STATUS, type WordStatus } from '@/types/words'
+import { normalizeWord } from '@/lib/normalizeWord'
 
-/**
- * هوک وضعیت کلمات — کاملاً بر اساس wordId کار می‌کنه.
- * تغییر وضعیت یک کلمه فقط یک ورودی از Map رو عوض می‌کنه، نه کل آرایه‌ی
- * چند هزار توکنی درس رو. یعنی toggleLearning فقط باعث re-render همون
- * SentenceInline‌ای می‌شه که اون کلمه توشه (به لطف React.memo).
- */
+export type WordStatusMap = Record<string, WordStatus>;
+
 export function useWordStatus(
   userId: string,
   lessonId: string,
-  initial: WordStateMap = {}
+  initial: WordStatusMap = {}
 ) {
-  const [state, setState] = useState<WordStateMap>(initial)
+  
+  const [status, setStatus] = useState<WordStatusMap>(initial)
 
-  // ref برای خوندن آخرین state داخل callbackهای stable (بدون نیاز به وابستگی به state)
-  const stateRef = useRef(state)
-  useEffect(() => { stateRef.current = state }, [state])
+const toggle = useCallback(
+    async (wordId:number, word:string) => {
 
-  const toggleLearning = useCallback(async (wordId: number) => {
-    const cur = stateRef.current[wordId]
-    const next: WordStatus | undefined = cur === WORD_STATUS.LEARNING ? undefined : WORD_STATUS.LEARNING
+        const normalized = normalizeWord(word);
 
-    setState(prev => {
-      const n = { ...prev }
-      if (!next) delete n[wordId]
-      else n[wordId] = WORD_STATUS.LEARNING
-      return n
-    })
+        if(!normalized)
+            return;
 
-    if (next) await WordRepository.markLearning(userId, wordId, lessonId)
-    else await WordRepository.clearStatus(userId, wordId)
-  }, [userId, lessonId])
+        const cur=status[normalized];
 
-  const markKnown = useCallback(async (wordId: number) => {
-    setState(prev => ({ ...prev, [wordId]: WORD_STATUS.KNOWN }))
-    await WordRepository.markKnown(userId, wordId, lessonId)
-  }, [userId, lessonId])
+        const next=
+            cur===WORD_STATUS.LEARNING
+            ? null
+            : WORD_STATUS.LEARNING;
 
-  const markMastered = useCallback(async (wordId: number) => {
-    setState(prev => ({ ...prev, [wordId]: WORD_STATUS.MASTERED }))
-    await WordRepository.markMastered(userId, wordId, lessonId)
-  }, [userId, lessonId])
+        setStatus(prev=>{
 
-  const unknownWordIds = useMemo(
-    () => Object.entries(state).filter(([, s]) => s === WORD_STATUS.LEARNING).map(([id]) => Number(id)),
-    [state]
-  )
+            const n={...prev};
 
-  return { state, toggleLearning, markKnown, markMastered, unknownWordIds }
+            if(!next)
+                delete n[normalized];
+            else
+                n[normalized]=WORD_STATUS.LEARNING;
+
+            return n;
+
+        });
+
+        if(next===WORD_STATUS.LEARNING){
+
+            await WordRepository.markLearning(
+
+                userId,
+
+                wordId,
+
+                lessonId
+
+            );
+
+        }
+
+    },
+    [status,userId,lessonId]
+);
+
+const markKnown = useCallback(
+async (wordId:number,word:string)=>{
+
+    const normalized=normalizeWord(word);
+
+    if(!normalized)
+        return;
+
+    setStatus(prev=>({
+
+        ...prev,
+
+        [normalized]:WORD_STATUS.KNOWN
+
+    }));
+
+    await WordRepository.markKnown(
+
+        userId,
+
+        wordId,
+
+        lessonId
+
+    );
+
+},
+[userId,lessonId]
+);
+
+const unknownWords = Object.entries(status)
+    .filter(([, s]) => s === WORD_STATUS.LEARNING)
+    .map(([w]) => w)
+
+  return { status, toggle, markKnown, unknownWords }
 }

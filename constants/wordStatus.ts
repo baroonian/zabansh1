@@ -1,4 +1,4 @@
-import { WORD_STATUS } from "@/types/word";
+import { WORD_STATUS } from "@/types/words";
 
 export const WordStatusColor = {
   [WORD_STATUS.NEW]: "#3B82F6",

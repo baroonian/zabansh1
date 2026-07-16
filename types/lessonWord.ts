@@ -1,4 +1,4 @@
-import { WordStatus } from "./word";
+import { WordStatus } from "./words";
 
 export interface LessonWord {
 

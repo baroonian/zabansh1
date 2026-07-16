@@ -9,7 +9,12 @@ export default async function HomePage() {
 
   const [profileRes, booksRes, catsRes, knownRes] = await Promise.all([
     sb.from('users').select('*').eq('id', user.id).single(),
-    sb.from('books').select('*, category:categories(id,name_fa,color)').eq('is_active', true).order('sort_order'),
+    sb.from('books')
+      .select('*, category:categories(id,name_fa,color)')
+      .eq('is_active', true)
+      // کتاب‌های ادمین (owner_id خالی) + کتاب‌های عمومیِ کاربران + کتاب‌های خصوصی خودِ این کاربر
+      .or(`owner_id.is.null,visibility.eq.public,owner_id.eq.${user.id}`)
+      .order('sort_order'),
     sb.from('categories').select('*').eq('is_active', true).order('sort_order'),
     sb.from('user_word_status').select('id,status').eq('user_id', user.id),
   ])

@@ -30,6 +30,9 @@ export default function Navbar({ profile }: { profile?: UserProfile | null }) {
             پنل ادمین
           </a>
         )}
+        <a href="/my-books" className="text-xs text-slate-400 hover:text-amber-400 transition-colors">
+          کتاب‌های من
+        </a>
         <a href="/profile">حساب کاربری</a> 
         <span className="text-xs text-slate-400 hidden sm:block">
           {profile?.full_name || profile?.email}

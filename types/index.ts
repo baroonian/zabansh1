@@ -26,6 +26,9 @@ export interface Book {
   created_at: string
   updated_at: string
   category?: Category
+  // کتاب‌هایی که توسط خود کاربران اضافه می‌شوند (نه ادمین)
+  owner_id?: string | null
+  visibility?: 'public' | 'private'
 }
 
 export interface Chapter {
@@ -56,6 +59,16 @@ export interface Lesson {
   transcript_id?: string
   transcription_status?: 'none' | 'processing' | 'done' | 'failed'
   chapter?: Chapter
+}
+
+export interface UserWordStatus {
+  id: string
+  user_id: string
+  word: string
+  status: 'learning' | 'known'
+  lesson_id?: string
+  created_at: string
+  updated_at: string
 }
 
 export interface UserProfile {

@@ -70,13 +70,19 @@ export default function HomeClient({ profile, books, categories, stats }: Props)
         </section>
 
         {/* Level filter */}
-        <div className="flex gap-2 flex-wrap mb-6">
+        <div className="flex items-center justify-between gap-2 flex-wrap mb-6">
+        <div className="flex gap-2 flex-wrap">
           {LEVEL_FILTERS.map(f=>(
             <button key={f.key} onClick={()=>setActiveLevel(f.key)}
               className={`flex items-center gap-1.5 px-4 py-1.5 rounded-full text-sm border transition-all ${activeLevel===f.key?'border-amber-500 bg-amber-500/10 text-amber-400':'border-ocean-600 bg-ocean-800 text-slate-400 hover:border-ocean-500'}`}>
               {f.icon} {f.label}
             </button>
           ))}
+        </div>
+          <Link href="/my-books"
+            className="flex items-center gap-1.5 px-4 py-1.5 rounded-full text-sm border border-amber-500/40 bg-amber-500/10 text-amber-400 hover:bg-amber-500/20 transition-all shrink-0">
+            📖 کتاب‌های من
+          </Link>
         </div>
 
         {/* Books grid */}
@@ -127,6 +133,11 @@ function BookCard({ book }: { book:Book }) {
           style={{background:`${color}25`, color, border:`1px solid ${color}40`}}>
           {cat?.name_fa ?? book.level}
         </span>
+        {book.owner_id && (
+          <span className="absolute top-2 left-2 text-xs px-2 py-0.5 rounded-full font-medium bg-ocean-950/70 text-amber-300 border border-amber-500/30">
+            👤 کاربر
+          </span>
+        )}
       </div>
 
       {/* Info */}
