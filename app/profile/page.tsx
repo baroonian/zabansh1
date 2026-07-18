@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
+import Link from 'next/link'
 import Navbar from '@/components/layout/Navbar'
 import Speedometer from '@/components/ui/Speedometer'
 import LogoutButton from './LogoutButton'
@@ -55,18 +56,31 @@ export default async function ProfilePage() {
 
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
           {[
-            { label: 'کلمه بلد',        value: knownWords,       color: '#10b981', icon: '✅' },
-            { label: 'در حال یادگیری',  value: learningWords,    color: '#f59e0b', icon: '🟡' },
-            { label: 'درس تکمیل‌شده',   value: completedLessons, color: '#3b82f6', icon: '📖' },
-            { label: 'دقیقه مطالعه',     value: totalMinutes,     color: '#a78bfa', icon: '⏱' },
-          ].map(s => (
-            <div key={s.label} className="bg-card border border-ocean-600 rounded-xl p-4 text-center"
-              style={{ borderTop: `3px solid ${s.color}` }}>
-              <div className="text-2xl mb-1">{s.icon}</div>
-              <div className="text-xl font-bold" style={{ color: s.color }}>{s.value.toLocaleString()}</div>
-              <div className="text-xs text-slate-400 mt-1">{s.label}</div>
-            </div>
-          ))}
+            { label: 'کلمه بلد',        value: knownWords,       color: '#10b981', icon: '✅', href: null },
+            { label: 'در حال یادگیری',  value: learningWords,    color: '#f59e0b', icon: '🟡', href: '/profile/learning-words' },
+            { label: 'درس تکمیل‌شده',   value: completedLessons, color: '#3b82f6', icon: '📖', href: null },
+            { label: 'دقیقه مطالعه',     value: totalMinutes,     color: '#a78bfa', icon: '⏱', href: null },
+          ].map(s => {
+            const CardInner = (
+              <>
+                <div className="text-2xl mb-1">{s.icon}</div>
+                <div className="text-xl font-bold" style={{ color: s.color }}>{s.value.toLocaleString()}</div>
+                <div className="text-xs text-slate-400 mt-1">{s.label}</div>
+                {s.href && <div className="text-xs text-amber-500/70 mt-1">مشاهده لیست ›</div>}
+              </>
+            )
+            const cardClass = "bg-card border border-ocean-600 rounded-xl p-4 text-center block"
+            const cardStyle = { borderTop: `3px solid ${s.color}` }
+            return s.href ? (
+              <Link key={s.label} href={s.href} className={`${cardClass} hover:border-amber-500/50 hover:-translate-y-0.5 transition-all`} style={cardStyle}>
+                {CardInner}
+              </Link>
+            ) : (
+              <div key={s.label} className={cardClass} style={cardStyle}>
+                {CardInner}
+              </div>
+            )
+          })}
         </div>
 
         {(streakRes.data ?? []).length > 0 && (

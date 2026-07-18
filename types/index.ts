@@ -61,16 +61,6 @@ export interface Lesson {
   chapter?: Chapter
 }
 
-export interface UserWordStatus {
-  id: string
-  user_id: string
-  word: string
-  status: 'learning' | 'known'
-  lesson_id?: string
-  created_at: string
-  updated_at: string
-}
-
 export interface UserProfile {
   id: string
   email: string

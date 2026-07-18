@@ -1,13 +1,14 @@
 'use client'
 import { useState, useCallback, useEffect, useRef, useMemo, memo } from 'react'
 import Navbar from '@/components/layout/Navbar'
-import type { Lesson, UserProfile, Progress } from '@/types'
-import { WordStatus } from '@/types/words'
-import { useWordStatus } from '@/hooks/useWordStatus'
 import { createClient } from '@/lib/supabase/client'
+import { WordRepository } from '@/lib/repositories/WordRepository'
+import { tokenizeLesson } from '@/lib/tokenizer'
+import { useWordStatus } from '@/hooks/useWordStatus'
+import { WORD_STATUS } from '@/types/word'
+import type { Lesson, UserProfile, Progress } from '@/types'
+import type { LessonToken, WordStateMap } from '@/types/lessonToken'
 
-
-const sb = createClient()
 interface WordTimestamp { word:string; word_index:number; start_ms:number; end_ms:number }
 interface SubtitleCue { cue_index:number; start_ms:number; end_ms:number; text:string }
 
@@ -15,31 +16,42 @@ interface Props {
   lesson: Lesson & { chapter?:{ number:number; title_fa:string; book?:{ id:string; title_fa:string } } }
   profile: UserProfile|null
   userId: string
-  initialWordStatus: Record<string, WordStatus>
+  paragraphTokens: LessonToken[][]
+  initialWordState: WordStateMap
   initialProgress: Progress|null
   wordTimestamps: WordTimestamp[]
   subtitleCues: SubtitleCue[]
 }
 
-function cleanWord(raw:string) { return raw.toLowerCase().replace(/[^a-zA-Z']/g,'') }
-
-// ── تقسیم متن به پاراگراف‌های واقعی (بر اساس خط خالی) ──────────
-function splitParagraphs(text:string): string[] {
-  return text.split(/\n\s*\n+/).map(p=>p.trim()).filter(Boolean)
+// ── تقسیم یک آرایه‌ی توکن به «جمله»ها (بر اساس علائم پایانی) ────
+function chunkIntoSentences(tokens: LessonToken[]): LessonToken[][] {
+  const sentences: LessonToken[][] = []
+  let current: LessonToken[] = []
+  for (const t of tokens) {
+    current.push(t)
+    if (!t.isWord && /^[.!?]$/.test(t.raw)) { sentences.push(current); current = [] }
+  }
+  if (current.length) sentences.push(current)
+  return sentences
 }
 
-// ── تقسیم یک پاراگراف به جمله‌ها (فاصله‌ی انتهای هر جمله حفظ میشه) ──
-function splitSentencesInParagraph(paragraph:string): string[] {
-  const flat = paragraph.replace(/\n+/g,' ')
-  const parts = flat.match(/[^.!?]+[.!?]*\s*/g) ?? [flat]
-  return parts.filter(s=>s.trim().length>0)
+// ── حالت SRT: پاراگراف واقعی نداریم، بر اساس فاصله زمانی بزرگ بین دو cue تشخیص میدیم ──
+function groupCuesIntoParagraphs(cues: SubtitleCue[]): number[][] {
+  const groups: number[][] = []
+  let current: number[] = []
+  cues.forEach((cue, i) => {
+    if (i > 0 && cue.start_ms - cues[i-1].end_ms > 2500) { groups.push(current); current = [] }
+    current.push(i)
+  })
+  if (current.length) groups.push(current)
+  return groups
 }
 
-function getActiveIdxByWords(sentences:string[], timestamps:WordTimestamp[], currentMs:number): number {
+function getActiveIdxByWords(sentences: LessonToken[][], timestamps: WordTimestamp[], currentMs:number): number {
   if (!timestamps.length) return -1
   let wIdx = 0
   for (let si=0; si<sentences.length; si++) {
-    const wCount = sentences[si].split(/\s+/).filter(w=>cleanWord(w).length>0).length
+    const wCount = sentences[si].filter(t=>t.isWord).length
     const firstTs = timestamps[wIdx]
     const lastTs  = timestamps[Math.min(wIdx+wCount-1, timestamps.length-1)]
     if (!firstTs) break
@@ -52,7 +64,7 @@ function getActiveIdxByWords(sentences:string[], timestamps:WordTimestamp[], cur
   return sentences.length-1
 }
 
-function getActiveIdxByCues(cues:SubtitleCue[], currentMs:number): number {
+function getActiveIdxByCues(cues: SubtitleCue[], currentMs:number): number {
   if (!cues.length) return -1
   for (let i=0; i<cues.length; i++) {
     const buffer = 150
@@ -62,9 +74,9 @@ function getActiveIdxByCues(cues:SubtitleCue[], currentMs:number): number {
   return cues.length-1
 }
 
-function wordOffsetForSentence(sentences:string[], si:number): number {
+function wordOffsetForSentences(sentences: LessonToken[][], si:number): number {
   let wIdx = 0
-  for (let i=0;i<si;i++) wIdx += sentences[i].split(/\s+/).filter(w=>cleanWord(w).length>0).length
+  for (let i=0;i<si;i++) wIdx += sentences[i].filter(t=>t.isWord).length
   return wIdx
 }
 
@@ -73,74 +85,76 @@ function fmt(ms:number) {
   return `${Math.floor(s/60)}:${String(s%60).padStart(2,'0')}`
 }
 
+function needsSpaceBefore(token: LessonToken, isFirst: boolean): boolean {
+  if (isFirst) return false
+  if (!token.isWord && /^[.,!?;:')\]}]$/.test(token.raw)) return false
+  return true
+}
+
 // ================================================================
-// SentenceInline — به‌جای جعبه‌ی مجزا، یک <span> که داخل پاراگراف
-// به‌صورت طبیعی جریان پیدا می‌کنه. جمله فعال فقط بولد میشه، بدون
-// پس‌زمینه یا کادر. memo شده تا فقط جمله‌ای که active آن عوض شده
-// دوباره render بشه.
+// SentenceInline — رندر یک جمله از روی آرایه‌ی توکن‌های آماده (نه regex زنده).
+// وضعیت هر کلمه از WordStateMap (کلید = wordId) خونده میشه.
+// memo شده: فقط وقتی isActive یا وضعیت کلماتِ همین جمله عوض بشه دوباره render میشه —
+// نه با هر تغییر یک کلمه‌ی دیگه در کل درس (چون Map جداست، نه آرایه‌ی توکن‌ها).
 // ================================================================
 interface SentenceInlineProps {
-  segment: string
+  tokens: LessonToken[]
   isActive: boolean
-  wordStatus: Record<string,'learning'|'known'>
+  wordState: WordStateMap
+  resolveWordId: (t: LessonToken) => number | null
   clickable: boolean
   onPress: () => void
-  onWordPress: (raw: string) => void
+  onWordPress: (t: LessonToken) => void
   setRef: (el: HTMLSpanElement | null) => void
 }
 
 const SentenceInline = memo(function SentenceInline({
-  segment, isActive, wordStatus, clickable, onPress, onWordPress, setRef,
+  tokens, isActive, wordState, resolveWordId, clickable, onPress, onWordPress, setRef,
 }: SentenceInlineProps) {
-  const tokens = useMemo(() => segment.split(/(\s+)/), [segment])
-
   return (
     <span ref={setRef} onClick={onPress} style={{ cursor: clickable ? 'pointer' : 'default' }}>
       {tokens.map((token, ti) => {
-        if (/^\s+$/.test(token)) return <span key={ti}>{token}</span>
-        const word   = cleanWord(token)
-        const status = word ? wordStatus[word] : undefined
-        const isUnknown = status==='learning'
+        const wid = token.isWord ? resolveWordId(token) : null
+        const status = wid != null ? wordState[wid] : undefined
+        const isUnknown = status === WORD_STATUS.LEARNING
         return (
-          <span
-            key={ti}
-            onClick={e => { e.stopPropagation(); word && onWordPress(token) }}
-            style={{
-              display:      'inline-block',
-              padding:      '1px 2px',
-              borderRadius: 4,
-              cursor:       'pointer',
-              fontWeight:   isActive ? 700 : isUnknown ? 500 : 400,
-              background:   isUnknown ? 'rgba(245,158,11,0.22)' : 'transparent',
-              color:        isUnknown ? '#f59e0b' : '#e2e8f0',
-              textDecoration: isUnknown ? 'underline dotted rgba(245,158,11,0.5)' : 'none',
-            }}>
-            {token}
+          <span key={ti}>
+            {needsSpaceBefore(token, ti===0) && ' '}
+            <span
+              onClick={e => { e.stopPropagation(); token.isWord && onWordPress(token) }}
+              style={{
+                display:      'inline-block',
+                padding:      '1px 2px',
+                borderRadius: 4,
+                cursor:       token.isWord ? 'pointer' : 'default',
+                fontWeight:   isActive ? 700 : isUnknown ? 500 : 400,
+                background:   isUnknown ? 'rgba(245,158,11,0.22)' : 'transparent',
+                color:        isUnknown ? '#f59e0b' : '#e2e8f0',
+                textDecoration: isUnknown ? 'underline dotted rgba(245,158,11,0.5)' : 'none',
+              }}>
+              {token.raw}
+            </span>
           </span>
         )
       })}
     </span>
   )
 }, (prev, next) =>
-  prev.segment === next.segment &&
+  prev.tokens === next.tokens &&
   prev.isActive === next.isActive &&
   prev.clickable === next.clickable &&
-  prev.wordStatus === next.wordStatus
+  prev.wordState === next.wordState
 )
 
 export default function LessonClient({
-  lesson, profile, userId, initialWordStatus, initialProgress, wordTimestamps, subtitleCues
+  lesson, profile, userId, paragraphTokens, initialWordState, initialProgress, wordTimestamps, subtitleCues
 }: Props) {
-  const {
-  status: wordStatus,
-  toggle,
-  markKnown,
-  unknownWords,
-} = useWordStatus(
-  userId,
-  lesson.id,
-  initialWordStatus
-)
+
+  const sb = useMemo(() => createClient(), [])
+
+  // ── وضعیت کلمات: یک Map سراسری بر اساس wordId — تغییرش کل آرایه‌ی توکن‌ها رو دست نمی‌زنه ──
+  const { state: wordState, toggleLearning, unknownWordIds } = useWordStatus(userId, lesson.id, initialWordState)
+
   const [finished,   setFinished]   = useState(initialProgress?.completed??false)
   const [saving,     setSaving]     = useState(false)
 
@@ -158,40 +172,48 @@ export default function LessonClient({
   const aiMode  = !srtMode && wordTimestamps.length > 0
   const hasSync = srtMode || aiMode
 
-  // ── segments: آرایه‌ی مسطح جمله‌ها/cue ها — همون چیزی که برای
-  // محاسبات sync (شمارش کلمه، پیدا کردن جمله فعال) استفاده میشه ──
-  const paragraphTexts = useMemo(() => splitParagraphs(lesson.text_en), [lesson.text_en])
-  const paragraphSentences = useMemo(
-    () => paragraphTexts.map(p => splitSentencesInParagraph(p)),
-    [paragraphTexts]
-  )
-  const segments: string[] = useMemo(
-    () => srtMode ? subtitleCues.map(c => c.text) : paragraphSentences.flat(),
-    [srtMode, subtitleCues, paragraphSentences]
+  // ── حالت SRT: خود متن cue ها رو client-side tokenize می‌کنیم (تا رندر
+  // یکسانی با حالت غیر-SRT داشته باشیم) ──
+  const srtSentenceTokens = useMemo(
+    () => srtMode ? subtitleCues.map(c => tokenizeLesson(c.text)) : [],
+    [srtMode, subtitleCues]
   )
 
-  // ── گروه‌بندی segments به پاراگراف برای نمایش ──────────────────
-  // حالت SRT: پاراگراف واقعی نداریم، پس بر اساس فاصله زمانی بزرگ بین
-  // دو cue (بیش از ۲.۵ ثانیه سکوت) یک پاراگراف جدید در نظر می‌گیریم
-  const paragraphs = useMemo(() => {
+  // ── flatSentences: لیست مسطح جمله‌ها (هر جمله = آرایه‌ی توکن) به ترتیب متن ──
+  const { flatSentences, paragraphGroups } = useMemo(() => {
     if (srtMode) {
-      const groups: number[][] = []
-      let current: number[] = []
-      subtitleCues.forEach((cue, i) => {
-        if (i > 0 && cue.start_ms - subtitleCues[i-1].end_ms > 2500) {
-          groups.push(current); current = []
-        }
-        current.push(i)
-      })
-      if (current.length) groups.push(current)
-      return groups
+      return { flatSentences: srtSentenceTokens, paragraphGroups: groupCuesIntoParagraphs(subtitleCues) }
     }
+    const perParagraph = paragraphTokens.map(chunkIntoSentences)
+    const flat = perParagraph.flat()
     let idx = 0
-    return paragraphSentences.map(sentArr => sentArr.map(() => idx++))
-  }, [srtMode, subtitleCues, paragraphSentences])
+    const groups = perParagraph.map(sentArr => sentArr.map(() => idx++))
+    return { flatSentences: flat, paragraphGroups: groups }
+  }, [srtMode, srtSentenceTokens, subtitleCues, paragraphTokens])
 
-  const wordStatusRef = useRef(wordStatus)
-  useEffect(() => { wordStatusRef.current = wordStatus }, [wordStatus])
+  // ── resolve دسته‌ای wordId برای کلمات SRT (چون سرور اونا رو نمی‌شناسه) —
+  // فقط یک بار در mount، نه به‌ازای هر کلیک ──
+  const [srtWordIds, setSrtWordIds] = useState<Map<string, number>>(new Map())
+  useEffect(() => {
+    if (!srtMode) return
+    const words = flatSentences.flatMap(sent => sent.filter(t=>t.isWord).map(t=>t.normalized))
+    if (!words.length) return
+    WordRepository.batchGetOrCreateWordIds(words).then(setSrtWordIds).catch(()=>{})
+  }, [srtMode, flatSentences])
+
+  const resolveWordId = useCallback((token: LessonToken): number | null => {
+    return token.wordId ?? srtWordIds.get(token.normalized) ?? null
+  }, [srtWordIds])
+
+  // ── نگاشت wordId → متن کلمه، برای نمایش لیست «کلمات در حال یادگیری» ──
+  const idToWord = useMemo(() => {
+    const m = new Map<number, string>()
+    flatSentences.forEach(sent => sent.forEach(t => {
+      const wid = t.isWord ? (t.wordId ?? srtWordIds.get(t.normalized) ?? null) : null
+      if (wid != null) m.set(wid, t.normalized)
+    }))
+    return m
+  }, [flatSentences, srtWordIds])
 
   const lastTickRef = useRef(0)
 
@@ -209,7 +231,7 @@ export default function LessonClient({
       if (hasSync) {
         const idx = srtMode
           ? getActiveIdxByCues(subtitleCues, ms)
-          : getActiveIdxByWords(segments, wordTimestamps, ms)
+          : getActiveIdxByWords(flatSentences, wordTimestamps, ms)
         setActiveIdx(prev => {
           if (prev !== idx && idx >= 0) {
             requestAnimationFrame(()=>{
@@ -240,7 +262,7 @@ export default function LessonClient({
       audio.removeEventListener('ended',          onEnded)
       audio.removeEventListener('error',          onError)
     }
-  },[segments, wordTimestamps, subtitleCues, srtMode, hasSync])
+  },[flatSentences, wordTimestamps, subtitleCues, srtMode, hasSync])
 
   const togglePlay = useCallback(() => {
     const a = audioRef.current; if (!a) return
@@ -263,24 +285,26 @@ export default function LessonClient({
     if (srtMode) {
       ms = subtitleCues[si]?.start_ms ?? 0
     } else {
-      const wIdx = wordOffsetForSentence(segments, si)
+      const wIdx = wordOffsetForSentences(flatSentences, si)
       ms = wordTimestamps[wIdx]?.start_ms ?? 0
     }
     if (audioRef.current) { audioRef.current.currentTime = ms/1000; setCurrentMs(ms) }
     segRefs.current[si]?.scrollIntoView({ behavior:'smooth', block:'center' })
-  }, [srtMode, subtitleCues, segments, wordTimestamps])
+  }, [srtMode, subtitleCues, flatSentences, wordTimestamps])
 
   const skip = useCallback((dir:1|-1) => {
-    const next = Math.max(0, Math.min(segments.length-1, activeIdx+dir))
+    const next = Math.max(0, Math.min(flatSentences.length-1, activeIdx+dir))
     jumpToIndex(next)
-  }, [activeIdx, segments.length, jumpToIndex])
+  }, [activeIdx, flatSentences.length, jumpToIndex])
 
-  const toggleWord = useCallback(
-    (wordId: number, raw: string) => {
-      toggle(wordId, raw)
-    },
-    [toggle]
-  )
+  // ── کلیک روی کلمه: wordId رو resolve می‌کنه و فقط Map رو عوض می‌کنه ──
+  const handleWordPress = useCallback((token: LessonToken) => {
+    const wid = resolveWordId(token)
+    if (wid != null) { toggleLearning(wid); return }
+    // fallback نادر: کلمه هنوز resolve نشده (مثلاً پیش از اتمام batch اولیه‌ی SRT)
+    WordRepository.getOrCreateWordId(token.normalized).then(id => toggleLearning(id))
+  }, [resolveWordId, toggleLearning])
+
   const markComplete = useCallback(async () => {
     setSaving(true)
     await sb.from('progress').upsert({
@@ -297,6 +321,8 @@ export default function LessonClient({
   const setSegRef = useCallback((idx: number) => (el: HTMLSpanElement | null) => {
     segRefs.current[idx] = el
   }, [])
+
+  const difficultyLabel: Record<string,string> = { beginner:'ساده', intermediate:'متوسط', advanced:'پیشرفته' }
 
   return (
     <div className="min-h-screen flex flex-col bg-ocean-950">
@@ -331,7 +357,7 @@ export default function LessonClient({
             <div className="flex gap-3 mt-2 text-xs text-slate-500 flex-wrap">
               {lesson.difficulty && (
                 <span className={`px-2 py-0.5 rounded-full ${lesson.difficulty==='beginner'?'bg-green-900/40 text-green-400':lesson.difficulty==='intermediate'?'bg-amber-900/40 text-amber-400':'bg-red-900/40 text-red-400'}`}>
-                  {lesson.difficulty==='beginner'?'ساده':lesson.difficulty==='intermediate'?'متوسط':'پیشرفته'}
+                  {difficultyLabel[lesson.difficulty] ?? lesson.difficulty}
                 </span>
               )}
               {lesson.estimated_duration_sec && <span>⏱ {Math.ceil(lesson.estimated_duration_sec/60)} دقیقه</span>}
@@ -348,19 +374,20 @@ export default function LessonClient({
           <span>برای علامت‌گذاری کلمات ناآشنا روی آن‌ها کلیک کن. {hasSync && hasAudio ? 'هنگام پخش، جمله فعال بولد می‌شود.' : ''}</span>
         </div>
 
-        {/* ── متن با پاراگراف‌های واقعی — هر پاراگراف یک <p> با جریان طبیعی ── */}
+        {/* ── متن — بر اساس LessonToken، نه regex زنده روی متن خام ── */}
         <div className="bg-ocean-800 border border-ocean-600 rounded-2xl p-6 mb-5" dir="ltr">
-          {paragraphs.map((segIndices, pi) => (
+          {paragraphGroups.map((sentIndices, pi) => (
             <p key={pi} style={{ marginBottom: 18, lineHeight: 1.9, fontSize: 16 }}>
-              {segIndices.map(si => (
+              {sentIndices.map(si => (
                 <SentenceInline
                   key={si}
-                  segment={segments[si]}
+                  tokens={flatSentences[si]}
                   isActive={hasSync && hasAudio && si===activeIdx}
-                  wordStatus={wordStatus}
+                  wordState={wordState}
+                  resolveWordId={resolveWordId}
                   clickable={hasSync}
                   onPress={() => hasSync && jumpToIndex(si)}
-                  onWordPress={toggleWord}
+                  onWordPress={handleWordPress}
                   setRef={setSegRef(si)}
                 />
               ))}
@@ -369,17 +396,17 @@ export default function LessonClient({
         </div>
 
         {/* Unknown words */}
-        {unknownWords.length>0 && (
+        {unknownWordIds.length>0 && (
           <div className="bg-ocean-800 border border-ocean-600 rounded-xl p-4">
             <p className="text-xs text-slate-400 mb-3 flex items-center gap-1.5">
-              <span>🟡</span> کلمات در حال یادگیری <span className="text-amber-500 font-bold">({unknownWords.length})</span>
+              <span>🟡</span> کلمات در حال یادگیری <span className="text-amber-500 font-bold">({unknownWordIds.length})</span>
             </p>
             <div className="flex flex-wrap gap-2">
-              {unknownWords.map(w=>(
-                <span key={w} onClick={()=>toggleWord(w)}
+              {unknownWordIds.map(wid=>(
+                <span key={wid} onClick={()=>toggleLearning(wid)}
                   className="cursor-pointer px-3 py-1 rounded-full text-sm font-medium transition-all hover:scale-105"
                   style={{ background:'rgba(245,158,11,0.18)', color:'#f59e0b', border:'1px solid rgba(245,158,11,0.3)' }}>
-                  {w}
+                  {idToWord.get(wid) ?? '…'}
                 </span>
               ))}
             </div>
@@ -432,14 +459,14 @@ export default function LessonClient({
                     : <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" style={{marginLeft:2}}><path d="M8 5v14l11-7z"/></svg>}
                 </button>
 
-                <button onClick={()=>skip(1)} disabled={!hasSync||activeIdx>=segments.length-1}
+                <button onClick={()=>skip(1)} disabled={!hasSync||activeIdx>=flatSentences.length-1}
                   className="w-9 h-9 flex items-center justify-center rounded-xl text-slate-400 hover:text-white hover:bg-ocean-700 disabled:opacity-25 transition-all" title="جمله بعدی">
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M6 18l8.5-6L6 6v12zm2.5-6 5.5 3.9V8.1L8.5 12zM16 6h2v12h-2z"/></svg>
                 </button>
               </div>
 
               <div className="text-xs text-slate-600 w-24 text-left">
-                {activeIdx>=0 && hasSync && <span className="text-amber-500/70">جمله {activeIdx+1}/{segments.length}</span>}
+                {activeIdx>=0 && hasSync && <span className="text-amber-500/70">جمله {activeIdx+1}/{flatSentences.length}</span>}
               </div>
             </div>
           </div>
@@ -463,7 +490,7 @@ export default function LessonClient({
           ) : (
             <>
               <p className="text-xs text-slate-500">
-                {unknownWords.length>0 ? `🟡 ${unknownWords.length} کلمه ناآشنا علامت زدی` : 'کلمات ناآشنا رو با کلیک علامت بزن'}
+                {unknownWordIds.length>0 ? `🟡 ${unknownWordIds.length} کلمه ناآشنا علامت زدی` : 'کلمات ناآشنا رو با کلیک علامت بزن'}
               </p>
               <button onClick={markComplete} disabled={saving}
                 className="flex items-center gap-2 px-5 py-2.5 bg-green-600 hover:bg-green-500 text-white font-semibold rounded-xl text-sm transition-colors disabled:opacity-50 whitespace-nowrap">
